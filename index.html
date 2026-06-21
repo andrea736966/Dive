@@ -860,7 +860,8 @@ function renderFinance(){
       h+='<div id="twd-extras-list">';
       extras.forEach(function(ex,xi){
         h+='<div class="frow" style="margin-bottom:8px">';
-        h+='<div class="form-group" style="flex:2"><input class="finput" placeholder="'+(zh3?'項目名稱':'Item name')+'" value="'+(ex.desc||'').replace(/"/g,\'&quot;\')+'" oninput="updateTwdExtra(\''+tid+'\','+xi+',\'desc\',this.value)"></div>';
+        var exDescEsc=(ex.desc||'').split('"').join('&quot;');
+        h+='<div class="form-group" style="flex:2"><input class="finput" placeholder="'+(zh3?'項目名稱':'Item name')+'" value="'+exDescEsc+'" oninput="updateTwdExtra(\''+tid+'\','+xi+',\'desc\',this.value)"></div>';
         h+='<div class="form-group" style="flex:1"><input class="finput" type="number" min="0" placeholder="0" value="'+vb(ex.amt)+'" oninput="updateTwdExtra(\''+tid+'\','+xi+',\'amt\',this.value)"></div>';
         h+='<button class="btn btn-danger btn-sm" style="height:44px;margin-top:20px;flex-shrink:0" onclick="removeTwdExtra(\''+tid+'\','+xi+')">✕</button>';
         h+='</div>';
@@ -1813,11 +1814,11 @@ function showWelcomeModal(){
     :
     '① Total Pax: everyone going (incl. coaches)<br>'+
     '② FOC Rule: e.g. 10 for "1 free per 10". Enter 0 for none<br>'+
-    '③ Free Coaches: all coaches who don't pay<br>'+
+    '③ Free Coaches: all coaches who don\u2019t pay<br>'+
     '④ Paying Members: auto = ①-③, editable<br>'+
     '⑤ Target Margin: 20 = charge 20% above cost<br>'+
     'Tap Calculate to get suggested price, break-even, and profit.<br>'+
-    'Results are saved automatically — switching tabs won't lose them.'
+    'Results are saved automatically \u2014 switching tabs won\u2019t lose them.'
   );
 
   /* ── Section 5: 幣別換算 ── */
@@ -1861,7 +1862,7 @@ function showWelcomeModal(){
     '• In Add Member: scan passport / dive cert photo → auto-fills name, passport no., cert info'
   );
 
-  b+='<button onclick="closeModal();gotoTab('finance')" class="btn btn-primary btn-full">'+(zh?'開始使用 →':'Get Started →')+'</button>';
+  b+='<button onclick="closeModal();gotoTab(\'finance\')" class="btn btn-primary btn-full">'+(zh?'開始使用 →':'Get Started →')+'</button>';
   openModal(zh?'📖 使用說明':'📖 User Guide',b,false,true);
 }
 
