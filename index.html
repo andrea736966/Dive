@@ -1038,8 +1038,14 @@ function convertToTWD(tid){
   var tSym=(CURR[target]||CURR.TWD).sym;
   var extras=trip.twdExtras||[];
   var twdExtras=extras.reduce(function(a,ex){return a+(ex.amt||0);},0);
+  /* Extra costs are in target currency — apply same margin so overall profit rate is preserved */
+  var margin=r.profitPct||0; /* use actual margin from base calculation */
+  var twdExtraPerPerson=r.paying>0?twdExtras/r.paying:0;
+  /* suggested price in target currency = (base suggested × rate) + (extra per person with same margin applied) */
+  /* extra cost per person ÷ (1 - margin/100) maintains the same profit rate on extra costs */
+  var twdExtraPerPersonWithMargin=margin<100?twdExtraPerPerson/(1-margin/100):twdExtraPerPerson*2;
   var totalCostT=r.totalCost*rate+twdExtras;
-  var suggestedT=r.suggested*rate + (r.paying>0?twdExtras/r.paying:0);
+  var suggestedT=r.suggested*rate + twdExtraPerPersonWithMargin;
   var revenueT=suggestedT*r.paying;
   var profitT=revenueT-totalCostT;
   var profitPctT=revenueT>0?(profitT/revenueT*100):0;
@@ -1051,7 +1057,8 @@ function convertToTWD(tid){
     '<div style="font-size:13px;color:#633806;line-height:2">'+
     (zh?'原始總成本 × 匯率':'Original cost × rate')+' = '+fc(r.totalCost)+' × '+rate+' = <b>'+fmtT(r.totalCost*rate)+'</b><br>'+
     (twdExtras>0?
-      (extras.map(function(ex){ return '• '+(ex.desc||'—')+': '+fmtT(ex.amt||0); }).join('<br>')+'<br>'+(zh?'小計':'Subtotal')+' = <b>'+fmtT(twdExtras)+'</b><br>'):'')+
+      (extras.map(function(ex){ return '• '+(ex.desc||'—')+': '+fmtT(ex.amt||0); }).join('<br>')+'<br>'+(zh?'小計（成本）':'Subtotal (cost)')+' = <b>'+fmtT(twdExtras)+'</b>'+
+      (zh?' → 含'+Math.round(margin)+'%利潤後每人加收 '+fmtT(twdExtraPerPersonWithMargin):'→ incl. '+Math.round(margin)+'% margin: '+fmtT(twdExtraPerPersonWithMargin)+'/pax')+'<br>'):'')+
     '<b>'+(zh?target+' 總成本':'Total Cost ('+target+')')+' = '+fmtT(totalCostT)+'</b></div>'+
     '<div class="pricing-result-grid" style="margin-top:10px">'+
     '<div class="pricing-box" style="background:#E1F5EE"><div class="pricing-box-val" style="color:#085041">'+fmtT(suggestedT)+'</div><div class="pricing-box-lbl" style="color:#085041">'+T('suggestedPrice')+' ('+target+')</div></div>'+
