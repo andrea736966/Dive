@@ -1223,13 +1223,16 @@ function calcPricing(tid){
   var breakEven=perPersonCost;
   var result={costA:costA,costBPerPerson:costBPerPerson,totalCost:totalCost,perPersonCost:perPersonCost,suggested:suggested,profit:profit,profitPct:profitPct,margin:margin,riskReserve:riskReserve,totalMarkup:totalMarkup,coachProfit:coachProfit,breakEven:breakEven,paying:paying,coachCount:coachCount,autoFoc:autoFoc,extraCoach:extraCoach,cur:CUR};
   trip.pricingResult=result; saveDB();
-  renderPricingResult(result);
-  var qBtn=document.getElementById('quote-btn'); if(qBtn) qBtn.style.display='';
-  /* clear stale TWD result since base numbers changed */
-  var twdEl=document.getElementById('twd-result'); if(twdEl) twdEl.innerHTML='';
+  /* clear stale TWD result */
   trip.twdResult=null; saveDB();
-  /* Render scenario table */
-  renderScenarios(tid);
+  /* Use setTimeout so DOM is fully rendered before writing results */
+  var _result=result; var _tid=tid;
+  setTimeout(function(){
+    renderPricingResult(_result);
+    var qBtn=document.getElementById('quote-btn'); if(qBtn) qBtn.style.display='';
+    var twdEl=document.getElementById('twd-result'); if(twdEl) twdEl.innerHTML='';
+    renderScenarios(_tid);
+  }, 80);
 }
 
 function openQuoteModal(tid){
