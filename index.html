@@ -946,6 +946,8 @@ function renderFinance(){
     h+='</div>';
     h+='</div>';
     h+='<button onclick="calcPricing(\''+tid+'\')" class="btn btn-primary btn-full mb12">'+T('calcBtn')+'</button>';
+    h+='<div id="pricing-result"></div>';
+    h+='<button id="quote-btn" onclick="openQuoteModal(\''+tid+'\')" class="btn btn-secondary btn-full mb8" style="display:none">📋 '+(zh3?'產生報價單':'Generate Quote')+'</button>';
     /* Coach profit split mode */
     if(ps.length>0){
       var splitMode=trip.splitMode||'equal';
@@ -970,8 +972,6 @@ function renderFinance(){
       }
       h+='</div>';
     }
-    h+='<div id="pricing-result"></div>';
-    h+='<button id="quote-btn" onclick="openQuoteModal(\''+tid+'\')" class="btn btn-secondary btn-full mb4" style="display:none">📋 '+(zh3?'產生報價單':'Generate Quote')+'</button>';
     /* Scenario calculator */
     var scenPax=trip.scenarioPax||[];
     h+='<div class="card mb12" style="border:1px solid #aaa">';
