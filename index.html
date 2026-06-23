@@ -992,7 +992,7 @@ function calcPricing(tid){
   var profitPct=revenue>0?(profit/revenue*100):0;
   var coachProfit=coachCount>0&&profit>0?profit/coachCount:profit;
   var breakEven=perPersonCost;
-  var result={costA:costA,costBPerPerson:costBPerPerson,totalCost:totalCost,perPersonCost:perPersonCost,suggested:suggested,profit:profit,profitPct:profitPct,coachProfit:coachProfit,breakEven:breakEven,paying:paying,coachCount:coachCount,autoFoc:autoFoc,extraCoach:extraCoach,cur:CUR};
+  var result={costA:costA,costBPerPerson:costBPerPerson,totalCost:totalCost,perPersonCost:perPersonCost,suggested:suggested,profit:profit,profitPct:profitPct,margin:margin,coachProfit:coachProfit,breakEven:breakEven,paying:paying,coachCount:coachCount,autoFoc:autoFoc,extraCoach:extraCoach,cur:CUR};
   trip.pricingResult=result; saveDB();
   renderPricingResult(result);
   /* clear stale TWD result since base numbers changed */
@@ -1004,7 +1004,7 @@ function renderPricingResult(r){
   var el=document.getElementById('pricing-result');
   if(!el||!r) return;
   var zh=LG==='zh';
-  var good=r.profitPct>=20,ok=r.profitPct>=5;
+  var markupPct=r.margin||0; var good=markupPct>=20,ok=markupPct>=10;
   var statusColor=good?'#1D9E75':ok?'#EF9F27':'#E24B4A';
   var statusLabel=good?T('healthy'):ok?T('low'):T('loss');
   el.innerHTML=
@@ -1017,7 +1017,7 @@ function renderPricingResult(r){
     '<div class="pricing-box" style="background:#E1F5EE"><div class="pricing-box-val" style="color:#085041">'+fc(r.suggested)+'</div><div class="pricing-box-lbl" style="color:#085041">'+T('suggestedPrice')+'</div></div>'+
     '<div class="pricing-box" style="background:#E6F1FB"><div class="pricing-box-val" style="color:#0C447C">'+fc(r.breakEven)+'</div><div class="pricing-box-lbl" style="color:#0C447C">'+T('breakEven')+'</div></div>'+
     '<div class="pricing-box" style="background:#f5f5f3"><div class="pricing-box-val">'+(r.coachCount>0?fc(r.coachProfit):fc(r.profit))+'</div><div class="pricing-box-lbl">'+(r.coachCount>0?T('coachProfit'):T('netProfit'))+'</div></div>'+
-    '<div class="pricing-box" style="background:#f5f5f3"><div class="pricing-box-val">'+Math.round(r.profitPct)+'%</div><div class="pricing-box-lbl">'+T('profitMargin')+'</div></div>'+
+    '<div class="pricing-box" style="background:#f5f5f3"><div class="pricing-box-val">'+(r.margin||0)+'%</div><div class="pricing-box-lbl">'+(LG==="zh"?"加成":"Markup")+'</div><div style="font-size:10px;color:#aaa;margin-top:2px">'+(LG==="zh"?"毛利率~":"Gross~")+Math.round(r.profitPct)+'%</div></div>'+
     '</div>'+
     '<div style="padding:10px 14px;background:'+statusColor+';border-radius:10px;color:#fff;display:flex;align-items:center;justify-content:space-between">'+
     '<span style="font-size:14px;font-weight:700">'+statusLabel+'</span>'+
@@ -1027,7 +1027,20 @@ function renderPricingResult(r){
 
 function convertToTWD(tid){
   var trip=DB.trips.find(function(t){return t.id===tid;}); if(!trip) return;
-  savePricingInput(tid);
+  /* Force-read twdExtras from DOM before converting */
+  var extras=trip.twdExtras||[];
+  extras.forEach(function(ex,xi){
+    var dEl=document.getElementById('si-desc-'+xi);
+    var aEl=document.getElementById('si-amt-'+xi);
+    if(dEl) ex.desc=dEl.value;
+    if(aEl) ex.amt=parseFloat(aEl.value)||0;
+  });
+  trip.twdExtras=extras;
+  var fxEl=document.getElementById('pi-fxrate');
+  var targetEl=document.getElementById('pi-targetcur');
+  if(fxEl) trip.fxRate=parseFloat(fxEl.value)||0;
+  if(targetEl) trip.convTargetCur=targetEl.value||'TWD';
+  saveDB();
   var r=trip.pricingResult;
   var el=document.getElementById('twd-result');
   if(!el) return;
@@ -1061,7 +1074,7 @@ function convertToTWD(tid){
     '<div class="pricing-box" style="background:#E1F5EE"><div class="pricing-box-val" style="color:#085041">'+fmtT(suggestedT)+'</div><div class="pricing-box-lbl" style="color:#085041">'+T('suggestedPrice')+' ('+target+')</div></div>'+
     '<div class="pricing-box" style="background:#f5f5f3"><div class="pricing-box-val">'+(r.coachCount>0?fmtT(coachProfitT):fmtT(profitT))+'</div><div class="pricing-box-lbl">'+(r.coachCount>0?T('coachProfit'):T('netProfit'))+' ('+target+')</div></div>'+
     '</div>'+
-    '<div class="t-xs mt4">'+(zh?'利潤率約 '+Math.round(profitPctT)+'%':'~'+Math.round(profitPctT)+'% margin')+'</div>'+
+    '<div class="t-xs mt4">'+(zh?'加成 '+Math.round(margin)+'%（毛利率~'+Math.round(profitPctT)+'%）':'Markup '+Math.round(margin)+'% (gross~'+Math.round(profitPctT)+'%)')+'</div>'+
     '</div>';
   trip.twdResult={rate:rate,twdExtras:twdExtras,target:target}; saveDB();
 }
