@@ -946,8 +946,36 @@ function renderFinance(){
     h+='</div>';
     h+='</div>';
     h+='<button onclick="calcPricing(\''+tid+'\')" class="btn btn-primary btn-full mb12">'+T('calcBtn')+'</button>';
-    h+='<div id="pricing-result"></div>';
-    h+='<button id="quote-btn" onclick="openQuoteModal(\''+tid+'\')" class="btn btn-secondary btn-full mb8" style="display:none">📋 '+(zh3?'產生報價單':'Generate Quote')+'</button>';
+    /* Inline pricing result - always rendered, no setTimeout needed */
+    if(trip.pricingResult){
+      var r2=trip.pricingResult;
+      var zh4=zh3;
+      var good2=(r2.totalMarkup||r2.margin||0)>=20, ok2=(r2.totalMarkup||r2.margin||0)>=10;
+      var sc2=good2?'#1D9E75':ok2?'#EF9F27':'#E24B4A';
+      var sl2=good2?T('healthy'):ok2?T('low'):T('loss');
+      var fmtR=function(n){return (CURR[r2.cur||CUR]||CURR.TWD).sym+Math.round(n).toLocaleString();};
+      h+='<div id="pricing-result" style="margin-bottom:8px">';
+      h+='<div style="background:#f5f5f3;border-radius:10px;padding:12px;margin-bottom:10px;font-size:13px;line-height:2;color:#555">';
+      h+='👥 '+(zh4?'總額類（÷'+r2.paying+'人）':'Total-type (÷'+r2.paying+' pax)')+': <b>'+fmtR(r2.costA)+'</b> → '+fmtR(r2.costA/r2.paying)+(zh4?'/人':'/pax')+'<br>';
+      h+='🧍 '+(zh4?'每人金額類（直接加總）':'Per-person type')+': <b>'+fmtR(r2.costBPerPerson)+'</b>'+(zh4?'/人':'/pax')+'<br>';
+      h+='📊 '+(zh4?'每人總費用':'Total per person')+': <b>'+fmtR(r2.perPersonCost)+'</b><br>';
+      h+='📦 '+(zh4?'全團總成本':'Total Group Cost')+': <b>'+fmtR(r2.totalCost)+'</b>';
+      h+='</div>';
+      h+='<div class="pricing-result-grid">';
+      h+='<div class="pricing-box" style="background:#E1F5EE"><div class="pricing-box-val" style="color:#085041">'+fmtR(r2.suggested)+'</div><div class="pricing-box-lbl" style="color:#085041">'+T('suggestedPrice')+'</div></div>';
+      h+='<div class="pricing-box" style="background:#E6F1FB"><div class="pricing-box-val" style="color:#0C447C">'+fmtR(r2.breakEven)+'</div><div class="pricing-box-lbl" style="color:#0C447C">'+T('breakEven')+'</div></div>';
+      h+='<div class="pricing-box" style="background:#f5f5f3"><div class="pricing-box-val">'+(r2.coachCount>0?fmtR(r2.coachProfit):fmtR(r2.profit))+'</div><div class="pricing-box-lbl">'+(r2.coachCount>0?(T('coachProfit')+'（'+(zh4?'共':'')+(r2.coachCount)+(zh4?'位教練)':' coaches)')):T('netProfit'))+'</div></div>';
+      h+='<div class="pricing-box" style="background:#f5f5f3"><div class="pricing-box-val">'+(r2.totalMarkup||r2.margin||0)+'%</div><div class="pricing-box-lbl">'+(zh4?'加成':'Markup')+'</div><div style="font-size:10px;color:#aaa;margin-top:2px">'+(zh4?'毛利率~':'Gross~')+Math.round(r2.profitPct)+'%</div></div>';
+      h+='</div>';
+      h+='<div style="padding:10px 14px;background:'+sc2+';border-radius:10px;color:#fff;display:flex;align-items:center;justify-content:space-between;margin-top:8px">';
+      h+='<span style="font-size:14px;font-weight:700">'+sl2+'</span>';
+      h+='<span style="font-size:12px">'+r2.paying+(zh4?' 人付費':' paying')+' · '+(r2.totalMarkup||r2.margin||0)+'% · '+(r2.cur||CUR)+'</span>';
+      h+='</div>';
+      h+='</div>';
+      h+='<button onclick="openQuoteModal(\''+tid+'\')" class="btn btn-secondary btn-full mb8">📋 '+(zh3?'產生報價單':'Generate Quote')+'</button>';
+    } else {
+      h+='<div id="pricing-result"></div>';
+    }
     /* Coach profit split mode */
     if(ps.length>0){
       var splitMode=trip.splitMode||'equal';
@@ -1034,14 +1062,10 @@ function renderFinance(){
   }
   h+='</div>';
   document.getElementById('sc-finance').innerHTML=h;
-  /* Restore saved pricing result and TWD conversion on page load */
-  if(isPro()){
-    if(trip.pricingResult) renderPricingResult(trip.pricingResult);
-    if(trip.twdResult && trip.pricingResult){
-      /* Use setTimeout to ensure DOM is ready before writing result */
-      var _tid=tid;
-      setTimeout(function(){ convertToTWD(_tid); },50);
-    }
+  /* TWD conversion restore */
+  if(isPro() && trip.twdResult && trip.pricingResult){
+    var _tid=tid;
+    setTimeout(function(){ convertToTWD(_tid); },50);
   }
 }
 function selFinTrip(id){ selTripId=id; renderFinance(); }
@@ -1225,14 +1249,10 @@ function calcPricing(tid){
   trip.pricingResult=result; saveDB();
   /* clear stale TWD result */
   trip.twdResult=null; saveDB();
-  /* Use setTimeout so DOM is fully rendered before writing results */
-  var _result=result; var _tid=tid;
-  setTimeout(function(){
-    renderPricingResult(_result);
-    var qBtn=document.getElementById('quote-btn'); if(qBtn) qBtn.style.display='';
-    var twdEl=document.getElementById('twd-result'); if(twdEl) twdEl.innerHTML='';
-    renderScenarios(_tid);
-  }, 80);
+  /* Re-render Finance to show results inline */
+  renderFinance();
+  /* Render scenario table after render */
+  setTimeout(function(){ renderScenarios(tid); }, 30);
 }
 
 function openQuoteModal(tid){
