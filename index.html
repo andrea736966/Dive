@@ -1264,11 +1264,17 @@ function openQuoteModal(tid){
   var sym=(CURR[r.cur||CUR]||CURR.TWD).sym;
   var exps=DB.expenses.filter(function(e){return e.tid===tid;});
   var catLabels=S[LG]&&S[LG].cats?S[LG].cats:S.en.cats;
-  var includedCats=exps.map(function(e){return catLabels[e.cat]||e.cat;});
-  /* Deduplicate */
-  var seen={};
-  includedCats=includedCats.filter(function(c){if(seen[c])return false;seen[c]=true;return true;});
-  var defaultExclude=zh?['國際機票','私人消費','裝備租借','小費']:['International flights','Personal expenses','Equipment rental','Tips'];
+  /* Build included list in logical order: charter, accommodation, gas, equipment, permits, food, transport, tips, insurance, other */
+  var catOrder=['charter','accommodation','gas','equipment','permits','food','transport','tips','insurance','other'];
+  var expCats=exps.map(function(e){return e.cat;});
+  var orderedCats=catOrder.filter(function(c){return expCats.indexOf(c)>=0;});
+  /* Add any cats not in our order list */
+  expCats.forEach(function(c){if(orderedCats.indexOf(c)<0)orderedCats.push(c);});
+  var seenC={};
+  var includedCats=orderedCats.filter(function(c){if(seenC[c])return false;seenC[c]=true;return true;}).map(function(c){return catLabels[c]||c;});
+  /* Remove from default excluded anything already in included */
+  var rawExclude=zh?['國際機票','私人消費','裝備租借','小費']:['International flights','Personal expenses','Equipment rental','Tips'];
+  var defaultExclude=rawExclude.filter(function(x){ return includedCats.indexOf(x)<0; });
   var defaultNotes=zh?['團費依實際匯率微調','訂金保留名額','需自行準備個人潛水裝備']:['Price subject to exchange rate adjustment','Deposit required to reserve spot','Personal dive gear required'];
   var q=trip.quoteData||{
     title:trip.name||(zh?'潛旅報價':'Dive Trip Quote'),
@@ -1296,7 +1302,7 @@ function openQuoteModal(tid){
   b+='<input class="finput" id="q-title" value="'+q.title.replace(/"/g,'&quot;')+'"></div>';
   /* Date / pax info (read-only display) */
   b+='<div style="background:#f5f5f3;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:13px;line-height:2">';
-  if(dateStr) b+='📅 '+dateStr+'<br>';
+  if(dateStr) b+='📅 '+dateStr+'<br>'; /* date comes from trip settings */
   b+='👥 '+r.paying+(zh?' 人':'  pax')+'<br>';
   b+='💰 <b>'+dispPrice+'</b> / '+(zh?'人':'person')+'</div>';
   /* Included */
