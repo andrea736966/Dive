@@ -971,6 +971,7 @@ function renderFinance(){
       h+='</div>';
     }
     h+='<div id="pricing-result"></div>';
+    h+='<button id="quote-btn" onclick="openQuoteModal(\''+tid+'\')" class="btn btn-secondary btn-full mb4" style="display:none">📋 '+(zh3?'產生報價單':'Generate Quote')+'</button>';
     /* Scenario calculator */
     var scenPax=trip.scenarioPax||[];
     h+='<div class="card mb12" style="border:1px solid #aaa">';
@@ -1223,11 +1224,139 @@ function calcPricing(tid){
   var result={costA:costA,costBPerPerson:costBPerPerson,totalCost:totalCost,perPersonCost:perPersonCost,suggested:suggested,profit:profit,profitPct:profitPct,margin:margin,riskReserve:riskReserve,totalMarkup:totalMarkup,coachProfit:coachProfit,breakEven:breakEven,paying:paying,coachCount:coachCount,autoFoc:autoFoc,extraCoach:extraCoach,cur:CUR};
   trip.pricingResult=result; saveDB();
   renderPricingResult(result);
+  var qBtn=document.getElementById('quote-btn'); if(qBtn) qBtn.style.display='';
   /* clear stale TWD result since base numbers changed */
   var twdEl=document.getElementById('twd-result'); if(twdEl) twdEl.innerHTML='';
   trip.twdResult=null; saveDB();
   /* Render scenario table */
   renderScenarios(tid);
+}
+
+function openQuoteModal(tid){
+  var trip=DB.trips.find(function(t){return t.id===tid;})||{};
+  var r=trip.pricingResult;
+  var zh=LG==='zh'||LG==='zh_cn';
+  if(!r){ alert(zh?'請先按「立即計算」':'Please tap Calculate first'); return; }
+  var sym=(CURR[r.cur||CUR]||CURR.TWD).sym;
+  var exps=DB.expenses.filter(function(e){return e.tid===tid;});
+  var catLabels=S[LG]&&S[LG].cats?S[LG].cats:S.en.cats;
+  var includedCats=exps.map(function(e){return catLabels[e.cat]||e.cat;});
+  /* Deduplicate */
+  var seen={};
+  includedCats=includedCats.filter(function(c){if(seen[c])return false;seen[c]=true;return true;});
+  var defaultExclude=zh?['國際機票','私人消費','裝備租借','小費']:['International flights','Personal expenses','Equipment rental','Tips'];
+  var defaultNotes=zh?['團費依實際匯率微調','訂金保留名額','需自行準備個人潛水裝備']:['Price subject to exchange rate adjustment','Deposit required to reserve spot','Personal dive gear required'];
+  var q=trip.quoteData||{
+    title:trip.name||(zh?'潛旅報價':'Dive Trip Quote'),
+    included:includedCats,
+    excluded:defaultExclude,
+    notes:defaultNotes
+  };
+  trip.quoteData=q; saveDB();
+  var dep=trip.dep?trip.dep.replace(/-/g,'/'):''; var ret=trip.ret?trip.ret.replace(/-/g,'/'):'';
+  var dateStr=dep&&ret?dep+' ～ '+ret:dep||'';
+  var suggested=r.suggested; var sugTWD=trip.twdResult&&trip.twdResult.target?null:null;
+  /* If TWD conversion done, use that price */
+  var dispPrice=sym+Math.round(suggested).toLocaleString();
+  if(trip.twdResult&&trip.pricingResult){
+    var tSym=(CURR[trip.twdResult.target]||CURR.TWD).sym;
+    var tRate=trip.fxRate||1; var tExtras=(trip.twdExtras||[]).reduce(function(a,e){return a+(e.amt||0);},0);
+    var tTotal=(r.totalCost*tRate+tExtras);
+    var tRev=tTotal*(1+(r.totalMarkup||r.margin||0)/100);
+    var tPer=r.paying>0?tRev/r.paying:0;
+    if(tPer>0) dispPrice=tSym+Math.round(tPer).toLocaleString();
+  }
+  /* Build modal */
+  var b='';
+  b+='<div class="form-group"><label class="flabel">'+(zh?'報價標題':'Quote Title')+'</label>';
+  b+='<input class="finput" id="q-title" value="'+q.title.replace(/"/g,'&quot;')+'"></div>';
+  /* Date / pax info (read-only display) */
+  b+='<div style="background:#f5f5f3;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:13px;line-height:2">';
+  if(dateStr) b+='📅 '+dateStr+'<br>';
+  b+='👥 '+r.paying+(zh?' 人':'  pax')+'<br>';
+  b+='💰 <b>'+dispPrice+'</b> / '+(zh?'人':'person')+'</div>';
+  /* Included */
+  b+='<div class="form-group"><label class="flabel">✅ '+(zh?'費用包含（每行一項）':'Included (one per line)')+'</label>';
+  b+='<textarea class="finput" id="q-inc" rows="5" style="resize:vertical">'+q.included.join('\n')+'</textarea></div>';
+  /* Excluded */
+  b+='<div class="form-group"><label class="flabel">❌ '+(zh?'費用不包含':'Not Included')+'</label>';
+  b+='<textarea class="finput" id="q-exc" rows="4" style="resize:vertical">'+q.excluded.join('\n')+'</textarea></div>';
+  /* Notes */
+  b+='<div class="form-group"><label class="flabel">📌 '+(zh?'備註':'Notes')+'</label>';
+  b+='<textarea class="finput" id="q-notes" rows="3" style="resize:vertical">'+q.notes.join('\n')+'</textarea></div>';
+  trip.quoteData.dispPrice=dispPrice;
+  b+='<button class="btn btn-secondary btn-full mb8" onclick="previewQuote(\''+tid+'\')" style="background:#f0f4ff;color:#185FA5;border:1px solid #185FA5">👁 '+(zh?'預覽報價單':'Preview Quote')+'</button>';
+  modalMode='addQuote'; selTripId=tid;
+  openModal(zh?'📋 產生報價單':'📋 Generate Quote', b, zh?'儲存設定':'Save Settings');
+}
+
+function previewQuote(tid){
+  var trip=DB.trips.find(function(t){return t.id===tid;})||{};
+  var r=trip.pricingResult;
+  var zh=LG==='zh'||LG==='zh_cn';
+  var dispPrice=(trip.quoteData&&trip.quoteData.dispPrice)||'';
+  /* Save current edits first */
+  var titleEl=document.getElementById('q-title');
+  var incEl=document.getElementById('q-inc');
+  var excEl=document.getElementById('q-exc');
+  var notesEl=document.getElementById('q-notes');
+  var q=trip.quoteData||{};
+  if(titleEl) q.title=titleEl.value.trim();
+  if(incEl) q.included=incEl.value.split('\n').map(function(s){return s.trim();}).filter(Boolean);
+  if(excEl) q.excluded=excEl.value.split('\n').map(function(s){return s.trim();}).filter(Boolean);
+  if(notesEl) q.notes=notesEl.value.split('\n').map(function(s){return s.trim();}).filter(Boolean);
+  trip.quoteData=q; saveDB();
+  var dep=trip.dep?trip.dep.replace(/-/g,'/'):''; var ret=trip.ret?trip.ret.replace(/-/g,'/'):'';
+  var dateStr=dep&&ret?dep+' ～ '+ret:dep||'';
+  /* Build preview */
+  var txt='';
+  txt+='🤿 '+q.title+'\n\n';
+  if(dateStr) txt+='📅 '+(zh?'日期':'Date')+'\n'+dateStr+'\n\n';
+  if(r&&r.paying) txt+='👥 '+(zh?'成團人數':'Group Size')+'\n'+r.paying+(zh?' 人':' pax')+'\n\n';
+  txt+='💰 '+(zh?'團費':'Price')+'\n'+dispPrice+' / '+(zh?'人':'person')+'\n\n';
+  if(q.included&&q.included.length){
+    txt+='📌 '+(zh?'費用包含':'Included')+'\n';
+    q.included.forEach(function(i){txt+='✅ '+i+'\n';});
+    txt+='\n';
+  }
+  if(q.excluded&&q.excluded.length){
+    txt+='📌 '+(zh?'費用不包含':'Not Included')+'\n';
+    q.excluded.forEach(function(i){txt+='❌ '+i+'\n';});
+    txt+='\n';
+  }
+  if(q.notes&&q.notes.length){
+    txt+='📌 '+(zh?'備註':'Notes')+'\n';
+    q.notes.forEach(function(n){txt+='• '+n+'\n';});
+  }
+  /* Show preview modal */
+  var b='<div style="background:#fff;border-radius:10px;padding:14px;font-size:14px;line-height:1.9;white-space:pre-wrap;border:1px solid #eee;max-height:55vh;overflow-y:auto;font-family:system-ui,sans-serif" id="quote-preview-text">'+txt.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</div>';
+  b+='<div class="frow gap8 mt8">';
+  b+='<button class="btn btn-primary" style="flex:1" onclick="copyQuote()">📋 '+(zh?'複製文字':'Copy Text')+'</button>';
+  b+='<button class="btn btn-secondary" style="flex:1;color:#aaa;border-color:#ddd" onclick="alert(\'即將推出 Coming Soon\')">📄 PDF</button>';
+  b+='</div>';
+  openModal(zh?'📋 報價單預覽':'Quote Preview', b, false);
+}
+
+function copyQuote(){
+  var el=document.getElementById('quote-preview-text');
+  if(!el) return;
+  var text=el.innerText||el.textContent;
+  var zh=LG==='zh'||LG==='zh_cn';
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(text).then(function(){
+      alert(zh?'✅ 已複製！可貼到 LINE / FB / IG 等':'✅ Copied! Paste to LINE / FB / IG etc.');
+    }).catch(function(){
+      fallbackCopy(text,zh);
+    });
+  } else { fallbackCopy(text,zh); }
+}
+function fallbackCopy(text,zh){
+  var ta=document.createElement('textarea');
+  ta.value=text; ta.style.position='fixed'; ta.style.opacity='0';
+  document.body.appendChild(ta); ta.select();
+  try{ document.execCommand('copy'); alert(zh?'✅ 已複製！':'✅ Copied!'); }
+  catch(e){ alert(zh?'請手動長按選取複製':'Please long-press to select and copy'); }
+  document.body.removeChild(ta);
 }
 
 function renderScenarios(tid){
@@ -1990,6 +2119,20 @@ function modalSave(){
     saveDB(); closeModal();
     if(added>0){ scannedExpenseItems=[]; renderFinance(); }
     else { alert(LG==='zh'?'未選擇任何項目':'No items selected'); showScanReviewModal(); }
+  }
+  else if(modalMode==='addQuote'){
+    /* Save quote settings */
+    var trip2=DB.trips.find(function(t){return t.id===selTripId;})||{};
+    var q2=trip2.quoteData||{};
+    var tEl=document.getElementById('q-title');
+    var iEl=document.getElementById('q-inc');
+    var eEl=document.getElementById('q-exc');
+    var nEl=document.getElementById('q-notes');
+    if(tEl) q2.title=tEl.value.trim();
+    if(iEl) q2.included=iEl.value.split('\n').map(function(s){return s.trim();}).filter(Boolean);
+    if(eEl) q2.excluded=eEl.value.split('\n').map(function(s){return s.trim();}).filter(Boolean);
+    if(nEl) q2.notes=nEl.value.split('\n').map(function(s){return s.trim();}).filter(Boolean);
+    trip2.quoteData=q2; saveDB(); closeModal();
   }
   else if(modalMode==='addExpense'){
     var desc=document.getElementById('f-edesc').value.trim();
