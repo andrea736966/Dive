@@ -815,6 +815,7 @@ function renderFinance(){
     var focRule=(pi.focrule!==undefined)?pi.focrule:(trip.focRule||0);
     var totalPaxVal=(pi.totalpax!==undefined)?pi.totalpax:actualPax;
     var marginVal=(pi.margin!==undefined)?pi.margin:(trip.margin||20);
+    var marginMethod=trip.marginMethod||'markup';
     var autoFoc0=focRule>0?Math.floor(totalPaxVal/focRule):0;
     var extraCoach0=Math.max(coachCount-autoFoc0,0);
     var autoPayingCalc=Math.max(totalPaxVal-coachCount,0);
@@ -839,8 +840,21 @@ function renderFinance(){
     h+='<div class="t-xs mb10" style="padding-left:2px">'+(zh3?'所有不付費的教練人數（包含有FOC和超額的）':'All coaches who do not pay — including FOC and extra ones')+'</div>';
     h+='<div class="row-between" style="margin-bottom:4px"><span class="t-body" style="font-weight:600;color:#185FA5">'+(zh3?'④ 要付錢的團員人數':'④ Paying Members')+'</span><input id="pi-paying" type="number" min="1" max="500" value="'+vb(payingVal)+'" oninput="savePricingInput(\''+tid+'\')" style="'+iS+';border:2px solid #185FA5;background:#EEF5FF"></div>';
     h+='<div class="t-xs mb12" style="padding-left:2px;color:#185FA5">'+(zh3?'= 總人數 - 免費教練 = 需要分攤費用的人數。可手動調整。':'= Total pax minus free coaches = people splitting the cost. Editable.')+'</div>';
-    h+='<div class="row-between" style="margin-bottom:12px"><span class="t-body" style="font-weight:600">'+(zh3?'⑤ 目標利潤率 %':'⑤ Target Margin %')+'</span><input id="pi-margin" type="number" min="0" max="200" value="'+vb(marginVal)+'" oninput="savePricingInput(\''+tid+'\')" style="'+iS+'"></div>';
-    h+='<div class="t-xs mb12" style="padding-left:2px;margin-top:-10px">'+(zh3?'例如填20，代表收費比成本多20%':'e.g. 20 means charge 20% above cost')+'</div>';
+    h+='<div class="t-body" style="font-weight:600;margin-bottom:8px">'+(zh3?'⑤ 利潤設定':'⑤ Profit Setting')+'</div>';
+    h+='<div style="background:#f5f5f3;border-radius:10px;padding:12px;margin-bottom:12px">';
+    h+='<div style="margin-bottom:10px">';
+    h+='<label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer">';
+    h+='<input type="radio" name="marginMethod_'+tid+'" value="markup" '+(marginMethod==='markup'?'checked':'')+' onchange="saveMarginMethod(\''+tid+'\',\'markup\')"> ';
+    h+='<div><div style="font-weight:600;font-size:13px">'+(zh3?'成本加成（推薦）':'Cost Markup (recommended)')+'</div>';
+    h+='<div style="font-size:11px;color:#aaa">'+(zh3?'填15 = 收費是成本的1.15倍，直覺易懂':'e.g. 15 = charge = cost × 1.15, easy to understand')+'</div></div>';
+    h+='</label>';
+    h+='<label style="display:flex;align-items:center;gap:8px;cursor:pointer">';
+    h+='<input type="radio" name="marginMethod_'+tid+'" value="gross" '+(marginMethod==='gross'?'checked':'')+' onchange="saveMarginMethod(\''+tid+'\',\'gross\')"> ';
+    h+='<div><div style="font-weight:600;font-size:13px">'+(zh3?'目標毛利率（進階）':'Target Gross Margin (advanced)')+'</div>';
+    h+='<div style="font-size:11px;color:#aaa">'+(zh3?'填15 = 利潤佔收費的15%':'e.g. 15 = profit is 15% of revenue')+'</div></div>';
+    h+='</label></div>';
+    h+='<div class="row-between"><span class="t-body">'+(zh3?marginMethod==='markup'?'加成 %':'毛利率 %':marginMethod==='markup'?'Markup %':'Gross Margin %')+'</span><input id="pi-margin" type="number" min="0" max="99" value="'+vb(marginVal)+'" oninput="savePricingInput(\''+tid+'\')" style="'+iS+'"></div>';
+    h+='</div>';
     h+='<button onclick="calcPricing(\''+tid+'\')" class="btn btn-primary btn-full mb12">'+T('calcBtn')+'</button>';
     h+='<div id="pricing-result"></div>';
     h+='</div>';
@@ -904,6 +918,13 @@ function renderFinance(){
 function selFinTrip(id){ selTripId=id; renderFinance(); }
 function delExpense(id){ if(!confirm(T('delExp'))) return; DB.expenses=DB.expenses.filter(function(e){return e.id!==id;}); saveDB(); renderFinance(); }
 
+function saveMarginMethod(tid, method){
+  var trip=DB.trips.find(function(t){return t.id===tid;}); if(!trip) return;
+  trip.marginMethod=method;
+  saveDB();
+  /* re-render to update label */
+  renderFinance();
+}
 function addTwdExtra(tid){
   var trip=DB.trips.find(function(t){return t.id===tid;}); if(!trip) return;
   if(!trip.twdExtras) trip.twdExtras=[];
@@ -956,6 +977,10 @@ function savePricingInput(tid){
   var targetEl=document.getElementById('pi-targetcur');
   if(fxEl) trip.fxRate=parseFloat(fxEl.value)||0;
   if(targetEl) trip.convTargetCur=targetEl.value||'TWD';
+  var radioMarkup=document.querySelector('input[name="marginMethod_'+tid+'"][value="markup"]');
+  var radioGross=document.querySelector('input[name="marginMethod_'+tid+'"][value="gross"]');
+  if(radioMarkup&&radioMarkup.checked) trip.marginMethod='markup';
+  else if(radioGross&&radioGross.checked) trip.marginMethod='gross';
   saveDB();
   /* live-update FOC preview without losing input focus */
   var totalPax=pi.totalpax||0, focRule=pi.focrule||0, coachCount=pi.coaches||0;
@@ -990,7 +1015,8 @@ function calcPricing(tid){
   var costBPerPerson=exps.filter(function(e){return e.costType==='B';}).reduce(function(a,e){return a+e.amt;},0);
   var perPersonCost=(costA/paying)+costBPerPerson;
   var totalCost=costA+(costBPerPerson*paying);
-  var suggested=perPersonCost*(1+margin/100);
+  var marginMethod=trip.marginMethod||'markup';
+  var suggested=marginMethod==='gross'?(margin<100?perPersonCost/(1-margin/100):perPersonCost*2):perPersonCost*(1+margin/100);
   var revenue=suggested*paying;
   var profit=revenue-totalCost;
   var profitPct=revenue>0?(profit/revenue*100):0;
@@ -1058,7 +1084,8 @@ function convertToTWD(tid){
   var margin=r.margin||0;
   /* Correct formula: combine ALL costs first, then apply margin uniformly */
   var totalCostT=r.totalCost*rate+twdExtras;
-  var totalRevenueT=totalCostT*(1+margin/100);
+  var marginMethodT=trip.marginMethod||'markup';
+  var totalRevenueT=marginMethodT==='gross'?(margin<100?totalCostT/(1-margin/100):totalCostT*2):totalCostT*(1+margin/100);
   var suggestedT=r.paying>0?totalRevenueT/r.paying:0;
   var revenueT=totalRevenueT;
   var profitT=revenueT-totalCostT;
