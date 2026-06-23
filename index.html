@@ -1051,7 +1051,7 @@ function convertToTWD(tid){
   var tSym=(CURR[target]||CURR.TWD).sym;
   var extras=trip.twdExtras||[];
   var twdExtras=extras.reduce(function(a,ex){return a+(ex.amt||0);},0);
-  var margin=r.profitPct||0;
+  var margin=r.margin||0;
   /* Correct formula: combine ALL costs first, then apply margin uniformly */
   var totalCostT=r.totalCost*rate+twdExtras;
   var totalRevenueT=totalCostT*(1+margin/100);
@@ -1067,8 +1067,7 @@ function convertToTWD(tid){
     '<div style="font-size:13px;color:#633806;line-height:2">'+
     (zh?'原始總成本 × 匯率':'Original cost × rate')+' = '+fc(r.totalCost)+' × '+rate+' = <b>'+fmtT(r.totalCost*rate)+'</b><br>'+
     (twdExtras>0?
-      (extras.map(function(ex){ return '• '+(ex.desc||'—')+': '+fmtT(ex.amt||0); }).join('<br>')+'<br>'+(zh?'小計（成本）':'Subtotal (cost)')+' = <b>'+fmtT(twdExtras)+'</b>'+
-      (zh?' → 含'+Math.round(margin)+'%利潤後每人加收 '+fmtT(twdExtraPerPersonWithMargin):'→ incl. '+Math.round(margin)+'% margin: '+fmtT(twdExtraPerPersonWithMargin)+'/pax')+'<br>'):'')+
+      (extras.map(function(ex){ return '• '+(ex.desc||'—')+': '+fmtT(ex.amt||0); }).join('<br>')+'<br>'+(zh?'額外費用小計':'Extra cost subtotal')+' = <b>'+fmtT(twdExtras)+'</b><br>'):'')+
     '<b>'+(zh?target+' 總成本':'Total Cost ('+target+')')+' = '+fmtT(totalCostT)+'</b></div>'+
     '<div class="pricing-result-grid" style="margin-top:10px">'+
     '<div class="pricing-box" style="background:#E1F5EE"><div class="pricing-box-val" style="color:#085041">'+fmtT(suggestedT)+'</div><div class="pricing-box-lbl" style="color:#085041">'+T('suggestedPrice')+' ('+target+')</div></div>'+
