@@ -1249,7 +1249,8 @@ function calcPricing(tid){
   trip.pricingResult=result; saveDB();
   /* clear stale TWD result */
   trip.twdResult=null; saveDB();
-  /* Re-render Finance to show results inline */
+  /* Ensure selTripId matches before re-render */
+  selTripId=tid;
   renderFinance();
   /* Render scenario table after render */
   setTimeout(function(){ renderScenarios(tid); }, 30);
