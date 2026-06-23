@@ -894,7 +894,11 @@ function renderFinance(){
   /* Restore saved pricing result and TWD conversion on page load */
   if(isPro()){
     if(trip.pricingResult) renderPricingResult(trip.pricingResult);
-    if(trip.twdResult && trip.pricingResult) convertToTWD(tid);
+    if(trip.twdResult && trip.pricingResult){
+      /* Use setTimeout to ensure DOM is ready before writing result */
+      var _tid=tid;
+      setTimeout(function(){ convertToTWD(_tid); },50);
+    }
   }
 }
 function selFinTrip(id){ selTripId=id; renderFinance(); }
