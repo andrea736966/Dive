@@ -986,7 +986,7 @@ function calcPricing(tid){
   var costBPerPerson=exps.filter(function(e){return e.costType==='B';}).reduce(function(a,e){return a+e.amt;},0);
   var perPersonCost=(costA/paying)+costBPerPerson;
   var totalCost=costA+(costBPerPerson*paying);
-  var suggested=margin<100?perPersonCost/(1-margin/100):perPersonCost*2;
+  var suggested=perPersonCost*(1+margin/100);
   var revenue=suggested*paying;
   var profit=revenue-totalCost;
   var profitPct=revenue>0?(profit/revenue*100):0;
@@ -1038,15 +1038,12 @@ function convertToTWD(tid){
   var tSym=(CURR[target]||CURR.TWD).sym;
   var extras=trip.twdExtras||[];
   var twdExtras=extras.reduce(function(a,ex){return a+(ex.amt||0);},0);
-  /* Extra costs are in target currency — apply same margin so overall profit rate is preserved */
-  var margin=r.profitPct||0; /* use actual margin from base calculation */
-  var twdExtraPerPerson=r.paying>0?twdExtras/r.paying:0;
-  /* suggested price in target currency = (base suggested × rate) + (extra per person with same margin applied) */
-  /* extra cost per person ÷ (1 - margin/100) maintains the same profit rate on extra costs */
-  var twdExtraPerPersonWithMargin=margin<100?twdExtraPerPerson/(1-margin/100):twdExtraPerPerson*2;
+  var margin=r.profitPct||0;
+  /* Correct formula: combine ALL costs first, then apply margin uniformly */
   var totalCostT=r.totalCost*rate+twdExtras;
-  var suggestedT=r.suggested*rate + twdExtraPerPersonWithMargin;
-  var revenueT=suggestedT*r.paying;
+  var totalRevenueT=totalCostT*(1+margin/100);
+  var suggestedT=r.paying>0?totalRevenueT/r.paying:0;
+  var revenueT=totalRevenueT;
   var profitT=revenueT-totalCostT;
   var profitPctT=revenueT>0?(profitT/revenueT*100):0;
   var coachProfitT=r.coachCount>0&&profitT>0?profitT/r.coachCount:profitT;
@@ -1770,6 +1767,21 @@ function showWelcomeModal(){
   var sec=function(emoji,title,body){ return '<div style="background:#f5f5f3;border-radius:12px;padding:14px;margin-bottom:10px"><div style="font-weight:700;font-size:13px;color:#042C53;margin-bottom:8px">'+emoji+' '+title+'</div><div style="font-size:12px;color:#444;line-height:1.85">'+body+'</div></div>'; };
   var b='<div style="text-align:center;padding:6px 0 12px"><div style="font-size:40px;margin-bottom:6px">🎉</div><div class="t-h2">'+(zh?'DiveMaster Pro 使用說明':'DiveMaster Pro — User Guide')+'</div></div>';
 
+  /* ── Step 0: 先設定語言和幣別 ── */
+  b+='<div style="background:#E1F5EE;border-radius:12px;padding:14px;margin-bottom:10px;border:2px solid #1D9E75">';
+  b+='<div style="font-weight:700;font-size:14px;color:#085041;margin-bottom:8px">⚙️ '+(zh?'第一步：先完成基本設定（重要！）':'Step 0: Complete Basic Setup First (Important!)')+'</div>';
+  b+='<div style="font-size:12px;color:#085041;line-height:2">'+(zh?
+    '使用前請先到右上角 ⚙️ 設定頁完成以下設定：<br><br>'+
+    '🌐 <b>語言</b>：選擇「繁體中文」或「English」<br>'+
+    '💱 <b>幣別</b>：選擇你這次旅程的主要幣別（例如泰銖 THB、台幣 TWD）<br><br>'+
+    '⚠️ <b>幣別必須在新增費用之前設定好</b>，因為所有費用金額都會以這個幣別儲存。設定後可以在財務頁最後用「換算」功能轉成其他幣別。'
+    :
+    'Before using, tap ⚙️ Settings in the top right and complete:<br><br>'+
+    '🌐 <b>Language</b>: Choose Traditional Chinese or English<br>'+
+    '💱 <b>Currency</b>: Select your trip\'s main currency (e.g. THB, TWD, USD)<br><br>'+
+    '⚠️ <b>Set your currency BEFORE adding any expenses</b> — all amounts are stored in this currency. You can convert to other currencies later in the Finance tab.'
+  )+'</div></div>';
+
   /* ── Section 1: 旅程 ── */
   b+=sec('🗺️', zh?'旅程管理':'Trip Management', zh?
     '按右上角「+」新增旅程，選擇類型（船宿/渡假村/一日船潛）。<br>'+
@@ -1784,13 +1796,11 @@ function showWelcomeModal(){
   /* ── Section 2: 成員 ── */
   b+=sec('👥', zh?'成員管理':'Member Management', zh?
     '按「+」逐筆新增，或按「📥 匯入Excel」一次大量匯入（支援 .xlsx/.csv）。<br>'+
-    '可下載範本格式，填好後上傳即可批次匯入。<br>'+
     '每位成員可記錄：姓名、護照、Email、電話、證照等級、發證機構、證照號碼、應付金額。<br>'+
     '點成員卡片可記錄收款（已付金額）。<br>'+
     '若開通AI掃描金鑰，可拍護照/證照照片自動填入。'
     :
     'Tap「+」to add one-by-one, or「📥 Import Excel」for bulk import (.xlsx/.csv).<br>'+
-    'Download the template, fill it in, then upload to import all at once.<br>'+
     'Stores: name, passport, email, phone, cert level, org, cert number, amount due.<br>'+
     'Tap a member card to record payment received.<br>'+
     'With an AI key, scan passport / cert photos to auto-fill.'
@@ -1800,13 +1810,13 @@ function showWelcomeModal(){
   b+=sec('💰', zh?'費用管理':'Expense Management', zh?
     '新增費用時選擇類型：<br>'+
     '👥 <b>總額</b>：整團共用一筆（如包船），系統自動 ÷ 付費人數算每人成本。<br>'+
-    '🧍 <b>每人金額</b>：這金額已是每人要付的（如機票 ฿17,000/人），直接加總。<br>'+
-    '選類別後描述欄會自動填入，金額用目前設定的幣別輸入，不會自動換算。'
+    '🧍 <b>每人金額</b>：這金額已是每人要付的（如小費 ฿3,000/人），直接加總。<br>'+
+    '選類別後描述欄會自動填入，金額用設定頁選的幣別輸入，不會自動換算。'
     :
     'When adding an expense, choose a type:<br>'+
     '👥 <b>Total</b>: one lump sum for the group (e.g. charter) — auto ÷ paying pax.<br>'+
-    '🧍 <b>Per-Person</b>: already a per-person amount (e.g. flight ฿17,000/pax) — summed directly.<br>'+
-    'Category auto-fills the description. Amount uses your current currency — no auto-conversion.'
+    '🧍 <b>Per-Person</b>: already a per-person amount (e.g. tips ฿3,000/pax) — summed directly.<br>'+
+    'Category auto-fills the description. Amount uses your chosen currency — no auto-conversion.'
   );
 
   /* ── Section 4: 收費計算機 ── */
@@ -1815,60 +1825,61 @@ function showWelcomeModal(){
     '② FOC規則：船公司條件，10送1填10，沒有填0<br>'+
     '③ 免費教練總人數：所有不付費的教練<br>'+
     '④ 付費人數：自動 = ①-③，可手動覆蓋<br>'+
-    '⑤ 目標利潤率：填20代表收費比成本多20%<br>'+
-    '按「立即計算」得出每人建議售價、損益平衡點、預計利潤。<br>'+
+    '⑤ 目標利潤率：填15代表收費 = 成本 × 1.15（加成法）<br>'+
+    '按「立即計算」得出每人建議售價。<br>'+
     '結果會自動儲存，換頁再回來不會消失。'
     :
     '① Total Pax: everyone going (incl. coaches)<br>'+
     '② FOC Rule: e.g. 10 for "1 free per 10". Enter 0 for none<br>'+
-    '③ Free Coaches: all coaches who don\u2019t pay<br>'+
+    '③ Free Coaches: all coaches who don\'t pay<br>'+
     '④ Paying Members: auto = ①-③, editable<br>'+
-    '⑤ Target Margin: 20 = charge 20% above cost<br>'+
-    'Tap Calculate to get suggested price, break-even, and profit.<br>'+
-    'Results are saved automatically \u2014 switching tabs won\u2019t lose them.'
+    '⑤ Target Margin: e.g. 15 means charge = cost × 1.15 (markup method)<br>'+
+    'Tap Calculate to get the suggested per-person price.<br>'+
+    'Results are saved automatically.'
   );
 
   /* ── Section 5: 幣別換算 ── */
   b+=sec('💱', zh?'幣別換算（手動結算用）':'Currency Conversion (manual settlement)', zh?
-    '計算完成後，若需要換算成台幣或其他幣別：<br>'+
-    '1. 選擇目標幣別（TWD/USD/JPY 等 13 種可選）<br>'+
-    '2. 確認或修改匯率（系統給建議值）<br>'+
-    '3. 若有台幣計算的額外費用（如國內機票），按「＋ 新增項目」，填項目名稱和總金額，系統自動 ÷ 付費人數計入售價<br>'+
-    '4. 按「換算」顯示目標幣別的建議售價與利潤'
+    '計算完成後，若需換算成台幣或其他幣別：<br>'+
+    '1. 選擇目標幣別（TWD/USD/JPY 等）<br>'+
+    '2. 確認或修改匯率<br>'+
+    '3. 若有用目標幣別計算的額外費用（如台灣機票），按「＋ 新增項目」填總金額，系統自動 ÷ 付費人數並套用利潤率計入售價<br>'+
+    '4. 按「換算」顯示目標幣別的建議售價<br>'+
+    '公式：（主幣別總成本 × 匯率 + 額外費用）× (1 + 利潤率%) ÷ 付費人數'
     :
-    'After calculating, to convert to another currency:<br>'+
-    '1. Pick target currency (13 options: TWD/USD/JPY etc.)<br>'+
-    '2. Confirm or adjust the rate (suggestion provided)<br>'+
-    '3. For extra costs in target currency (e.g. domestic flights), tap「+ Add Item」, enter name and total amount — auto ÷ paying pax<br>'+
-    '4. Tap Convert to see the target-currency price and profit'
+    'After calculating, to convert:<br>'+
+    '1. Pick target currency (TWD/USD/JPY etc.)<br>'+
+    '2. Confirm or adjust the rate<br>'+
+    '3. For extra costs in target currency (e.g. flights), tap「+ Add Item」, enter total — auto ÷ paying pax with margin applied<br>'+
+    '4. Tap Convert to see the target-currency suggested price<br>'+
+    'Formula: (base cost × rate + extras) × (1 + margin%) ÷ paying pax'
   );
 
   /* ── Section 6: 備份/PDF/Excel ── */
   b+=sec('📁', zh?'備份・PDF匯出・Excel匯入':'Backup · PDF Export · Excel Import', zh?
-    '⚙️ <b>設定頁 → 資料備份與還原</b>：匯出 .json 備份檔，可用於換裝置、防止資料遺失，或當作多裝置手動同步。<br>'+
-    '📄 <b>財務頁右上角 → PDF</b>：產生完整旅程報告（成員名單 + 費用記錄 + 計算結果）可儲存或列印。<br>'+
-    '📥 <b>成員頁 → 匯入Excel</b>：支援 .xlsx/.csv，可下載範本格式批次匯入團員資料。'
+    '⚙️ <b>設定頁 → 資料備份與還原</b>：匯出 .json 備份，可換裝置或手動同步。<br>'+
+    '📄 <b>財務頁右上角 → PDF</b>：產生完整旅程報告（成員名單 + 費用 + 計算結果）。<br>'+
+    '📥 <b>成員頁 → 匯入Excel</b>：支援 .xlsx/.csv，可下載範本批次匯入。'
     :
-    '⚙️ <b>Settings → Backup & Restore</b>: export a .json backup for device transfer, data protection, or manual multi-device sync.<br>'+
-    '📄 <b>Finance → PDF button</b>: generates a full trip report (members + expenses + pricing) for saving or printing.<br>'+
-    '📥 <b>Members → Import Excel</b>: supports .xlsx/.csv. Download the template and bulk-import member data.'
+    '⚙️ <b>Settings → Backup & Restore</b>: export .json backup for device transfer or manual sync.<br>'+
+    '📄 <b>Finance → PDF button</b>: full trip report (members + expenses + pricing).<br>'+
+    '📥 <b>Members → Import Excel</b>: .xlsx/.csv bulk import with downloadable template.'
   );
 
   /* ── Section 7: AI掃描 ── */
   b+=sec('📷', zh?'AI 掃描（需API金鑰）':'AI Scan (requires API key)', zh?
     '⚙️ 設定頁 → AI掃描設定 → 輸入 Anthropic API 金鑰。<br>'+
     '申請：console.anthropic.com 註冊，手機驗證可獲 $5 免費額度（約可掃描上千次）。<br>'+
-    '已有額度？到 Plans & Billing → Credits 加值。<br>'+
-    '支援功能：<br>'+
-    '• 成員新增頁拍護照/潛水證照 → 自動填入姓名、護照號碼、證照資訊'
+    '餘額不足：到 Plans & Billing → Credits 加值。<br>'+
+    '支援：成員新增頁拍護照/潛水證照 → 自動填入姓名、護照號碼、證照資訊。'
     :
     '⚙️ Settings → AI Scan Setup → enter your Anthropic API key.<br>'+
-    'Sign up at console.anthropic.com; phone verification gives ~$5 free credit (~1000 scans).<br>'+
-    'If credit is low: go to Plans & Billing → Credits to top up.<br>'+
-    'Supported:<br>'+
-    '• In Add Member: scan passport / dive cert photo → auto-fills name, passport no., cert info'
+    'Sign up at console.anthropic.com; phone verification gives ~$5 free credit.<br>'+
+    'Low balance: go to Plans & Billing → Credits to top up.<br>'+
+    'Supports: scan passport/dive cert in Add Member → auto-fills name, passport, cert info.'
   );
 
+  b+='<button onclick="closeModal();gotoTab(\'settings\')" class="btn btn-secondary btn-full mb8">'+(zh?'⚙️ 前往設定語言和幣別':'⚙️ Go to Settings')+'</button>';
   b+='<button onclick="closeModal();gotoTab(\'finance\')" class="btn btn-primary btn-full">'+(zh?'開始使用 →':'Get Started →')+'</button>';
   openModal(zh?'📖 使用說明':'📖 User Guide',b,false,true);
 }
