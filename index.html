@@ -486,32 +486,30 @@ function avHtml(name,sz){
   return '<div class="av" style="width:'+sz+'px;height:'+sz+'px;background:'+AVC[i][0]+';color:'+AVC[i][1]+';font-size:'+Math.round(sz*.34)+'px">'+ini+'</div>';
 }
 function payStatus(p){
+  if(p.due===0&&p.paid===0) return 'na';
   if(p.paid>=p.due) return 'paid';
   if(p.paid>0) return 'partial';
   return 'pending';
 }
 function badgeHtml(status){
-  var map={paid:'b-green',partial:'b-amber',pending:'b-red',active:'b-green',planning:'b-amber',completed:'b-blue'};
-  var lbl={paid:T('paid'),partial:T('partial'),pending:T('pending'),active:T('active'),planning:T('planning'),completed:T('completed')};
+  var map={paid:'b-green',partial:'b-amber',pending:'b-red',active:'b-green',planning:'b-amber',completed:'b-blue',na:'b-gray'};
+  var zh2=LG==='zh'||LG==='zh_cn';
+  var lbl={paid:T('paid'),partial:T('partial'),pending:T('pending'),active:T('active'),planning:T('planning'),completed:T('completed'),na:zh2?'教練':'Coach'};
   return '<span class="badge '+(map[status]||'b-gray')+'">'+(lbl[status]||status)+'</span>';
 }
 function fd(s){
   if(!s) return '';
-  var parts=s.split('-');
-  if(parts.length!==3) return s;
-  var y=parseInt(parts[0]),m=parseInt(parts[1])-1,d=parseInt(parts[2]);
-  var dt=new Date(y,m,d);
-  var locale=LG==='zh'?'zh-TW':LG==='zh_cn'?'zh-CN':'en-US';
-  return dt.toLocaleDateString(locale,{month:'short',day:'numeric'});
+  var pts=s.split('-'); if(pts.length!==3) return s;
+  var dt=new Date(parseInt(pts[0]),parseInt(pts[1])-1,parseInt(pts[2]));
+  var loc=LG==='zh'?'zh-TW':LG==='zh_cn'?'zh-CN':'en-US';
+  return dt.toLocaleDateString(loc,{month:'short',day:'numeric'});
 }
 function fdFull(s){
   if(!s) return '';
-  var parts=s.split('-');
-  if(parts.length!==3) return s;
-  var y=parseInt(parts[0]),m=parseInt(parts[1])-1,d=parseInt(parts[2]);
-  var dt=new Date(y,m,d);
-  var locale=LG==='zh'?'zh-TW':LG==='zh_cn'?'zh-CN':'en-US';
-  return dt.toLocaleDateString(locale,{year:'numeric',month:'short',day:'numeric'});
+  var pts=s.split('-'); if(pts.length!==3) return s;
+  var dt=new Date(parseInt(pts[0]),parseInt(pts[1])-1,parseInt(pts[2]));
+  var loc=LG==='zh'?'zh-TW':LG==='zh_cn'?'zh-CN':'en-US';
+  return dt.toLocaleDateString(loc,{year:'numeric',month:'short',day:'numeric'});
 }
 function catLabel(c){ return TT('cats',c)||c; }
 function tripTypeLabel(t){ return TT('tripTypes',t)||t; }
@@ -682,7 +680,7 @@ function renderPeople(){
   var paidC=ps.filter(function(p){return payStatus(p)==='paid';}).length;
   var partC=ps.filter(function(p){return payStatus(p)==='partial';}).length;
   var pendC=ps.filter(function(p){return payStatus(p)==='pending';}).length;
-  var h='<div class="ph"><div class="t-h1">'+T('people')+'</div><div class="row gap8"><button class="btn btn-secondary btn-sm" onclick="openImportPeople()">'+T('importBtn2')+'</button><button class="add-btn" onclick="openAddPerson()">+</button></div></div>';
+  var h='<div class="ph"><div class="t-h1">'+T('people')+'</div><div class="row gap8"><button class="btn btn-secondary btn-sm" onclick="openImportGoogleSheet()">🔗 '+(LG==='zh'||LG==='zh_cn'?'Google表單':'Google Form')+'</button><button class="btn btn-secondary btn-sm" onclick="openImportPeople()">'+T('importBtn2')+'</button><button class="add-btn" onclick="openAddPerson()">+</button></div></div>';
   h+='<div class="chip-bar">'+chips+'</div>';
   h+='<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px">';
   h+='<div class="metric" style="text-align:center"><div class="metric-lbl">'+T('paid')+'</div><div class="metric-val" style="color:#1D9E75">'+paidC+'</div></div>';
@@ -995,7 +993,19 @@ function renderFinance(){
       h+='</div>';
       if(splitMode==='custom'){
         var cs=trip.customSplit||[];
-        var fCoaches=ps.filter(function(p){return (trip.freeCoachIds||[]).indexOf(p.id)>=0;}); if(!cs.length&&fCoaches.length){ cs=fCoaches.map(function(c){return{name:c.name,pct:Math.round(100/fCoaches.length)};}); trip.customSplit=cs; }
+        /* Build default list from: 1) freeCoachIds members, 2) instructor/dm members, 3) coach count number */
+        if(!cs.length){
+          var fCoaches=ps.filter(function(p){return (trip.freeCoachIds||[]).indexOf(p.id)>=0;});
+          if(!fCoaches.length) fCoaches=ps.filter(function(p){return p.cert==='instructor'||p.cert==='dm';});
+          if(fCoaches.length){
+            cs=fCoaches.map(function(c){return{name:c.name,pct:Math.round(100/fCoaches.length)};});
+          } else {
+            /* Fall back to coach count from pricing inputs */
+            var numC=(trip.pricingInputs&&trip.pricingInputs.coaches)||1;
+            for(var ci=0;ci<numC;ci++) cs.push({name:(zh3?'教練':'Coach')+' '+(ci+1),pct:Math.round(100/numC)});
+          }
+          trip.customSplit=cs; saveDB();
+        }
         var totalPct=cs.reduce(function(a,s){return a+(s.pct||0);},0);
         cs.forEach(function(s,i){
           h+='<div class="frow mb6"><div class="form-group" style="flex:2"><input class="finput" value="'+s.name.replace(/"/g,'&quot;')+'" oninput="updateSplit(\''+tid+'\','+i+',\'name\',this.value)"></div>';
@@ -1048,14 +1058,66 @@ function renderFinance(){
       h+='<button class="btn btn-secondary btn-full mb8" onclick="addTwdExtra(\''+tid+'\')">＋ '+(zh3?'新增項目':'Add Item')+'</button>';
       h+='<button onclick="convertToTWD(\''+tid+'\')" class="btn btn-secondary btn-full mb12">💱 '+(zh3?'換算':'Convert')+'</button>';
       h+='<div id="twd-result"></div>';
-      if(trip.pricingResult) h+='<button onclick="openQuoteModal(\''+tid+'\')" class="btn btn-primary btn-full mb8" style="margin-top:12px">📋 '+(zh3?'產生報價單':'Generate Quote')+'</button>';
+      if(trip.pricingResult) h+='<button onclick="openQuoteModal(\''+tid+'\')" class="btn btn-primary btn-full mb8" style="margin-top:10px">📋 '+(zh3?'產生報價單':'Generate Quote')+'</button>';
       h+='</div>';
     }
   } else {
-    h+='<div class="pro-gate"><div style="font-size:36px;margin-bottom:10px">🔐</div>';
-    h+='<div class="t-h3 mb8">'+T('proGateTitle')+'</div>';
-    h+='<div class="t-small mb12">'+T('proGateDesc')+'</div>';
-    h+='<button class="btn btn-primary" onclick="showUnlockModal()">'+T('unlockBtn')+'</button></div>';
+    /* FREE version: simple calc + currency + quote */
+    var zh5=LG==='zh'||LG==='zh_cn';
+    var iSF='width:80px;padding:8px;border-radius:8px;border:1px solid #ddd;font-size:14px;font-weight:600;text-align:right;font-family:inherit';
+    var freePaying=trip.freePaying||ps.length||1;
+    var costAF=exps.filter(function(e){return e.costType!=='B';}).reduce(function(a,e){return a+e.amt;},0);
+    var costBF=exps.filter(function(e){return e.costType==='B';}).reduce(function(a,e){return a+e.amt;},0);
+    var perPersonF=freePaying>0?(costAF/freePaying+costBF):0;
+    var tidJ=JSON.stringify(tid);
+
+    h+='<div class="card mb12" style="border:1px solid #185FA5">';
+    h+='<div class="t-h2 mb8">🧮 '+(zh5?'費用試算':'Cost Calculator')+'</div>';
+    h+='<div class="row-between mb8"><span class="t-body">'+(zh5?'付費人數':'Paying Pax')+'</span>';
+    h+='<input id="pi-free-paying" type="number" min="1" value="'+freePaying+'" oninput="saveFreePaying('+tidJ+')" style="'+iSF+'"></div>';
+    if(exps.length>0){
+      h+='<div style="background:#f5f5f3;border-radius:8px;padding:10px;margin-bottom:10px;font-size:13px;line-height:2;color:#555">';
+      h+='👥 '+(zh5?'總額類：':'Total-type: ')+'<b>'+fc(costAF)+'</b> ÷ '+freePaying+(zh5?' 人':' pax')+' = <b>'+fc(costAF/freePaying)+(zh5?'/人':'/pax')+'</b><br>';
+      h+='🧍 '+(zh5?'每人類：':'Per-person: ')+'<b>'+fc(costBF)+(zh5?'/人':'/pax')+'</b><br>';
+      h+='<b>📊 '+(zh5?'每人總費用：':'Total per person: ')+fc(perPersonF)+'</b>';
+      h+='</div>';
+    } else {
+      h+='<div class="t-xs mb10" style="color:#aaa">'+(zh5?'先新增費用，試算結果會出現在這裡。':'Add expenses below — results appear here.')+'</div>';
+    }
+    h+='<div style="background:#E6F1FB;border-radius:8px;padding:8px 12px;font-size:12px;color:#0C447C;margin-bottom:8px">';
+    h+='🔓 '+(zh5?'解鎖 PRO 版：FOC 計算、教練分潤、利潤設定、多人數試算':'Unlock PRO: FOC calc, profit split, margin setting, scenario calculator');
+    h+='</div>';
+    h+='<button class="btn btn-secondary btn-full btn-sm" onclick="showUnlockModal()">🗝️ '+(zh5?'解鎖 PRO 版':'Unlock PRO')+'</button>';
+    h+='</div>';
+
+    var fxRateF=trip.fxRate||(RATES_TO_TWD[CUR]||1);
+    var targetCurF=trip.convTargetCur||'TWD';
+    h+='<div class="card mb12" style="border:1px solid #EF9F27">';
+    h+='<div class="t-h2 mb8">💱 '+(zh5?'幣別換算':'Currency Conversion')+'</div>';
+    h+='<div class="form-group"><label class="flabel">'+(zh5?'換算成':'Convert To')+'</label>';
+    h+='<select id="pi-targetcur" class="finput" onchange="onTargetCurChange('+tidJ+')" style="padding:12px 8px">';
+    Object.entries(CURR).forEach(function(c){ h+='<option value="'+c[0]+'"'+(c[0]===targetCurF?' selected':'')+'>'+c[1].sym+' '+c[1].name+'</option>'; });
+    h+='</select></div>';
+    h+='<div class="row-between mb10"><span class="t-body">1 '+CUR+' = ? '+targetCurF+'</span>';
+    h+='<input id="pi-fxrate" type="number" min="0" step="0.001" value="'+fxRateF+'" oninput="savePricingInput('+tidJ+')" style="'+iSF+'"></div>';
+    h+='<div class="t-xs mb8" style="color:#633806">'+(zh5?'以下每筆為「總金額」，÷ 付費人數得每人售價':'Each item is a TOTAL — ÷ paying pax = per-person price')+'</div>';
+    var extrasF=trip.twdExtras||[];
+    var extHtml=''; 
+    extrasF.forEach(function(ex,xi){
+      var exD=(ex.desc||'').replace(/"/g,'&quot;');
+      var dQ=JSON.stringify(tid);
+      extHtml+='<div class="frow" style="margin-bottom:8px">';
+      extHtml+='<div class="form-group" style="flex:2"><input class="finput" placeholder="'+(zh5?'項目名稱':'Item name')+'" value="'+exD+'" oninput="updateTwdExtra('+dQ+','+xi+',\"desc\",this.value)"></div>';
+      extHtml+='<div class="form-group" style="flex:1"><input class="finput" type="number" min="0" placeholder="0" value="'+(ex.amt||0)+'" oninput="updateTwdExtra('+dQ+','+xi+',\"amt\",this.value)"></div>';
+      extHtml+='<button class="btn btn-danger btn-sm" style="height:44px;margin-top:20px;flex-shrink:0" onclick="removeTwdExtra('+dQ+','+xi+')">&#x2715;</button>';
+      extHtml+='</div>';
+    });
+    h+='<div id="twd-extras-list">'+extHtml+'</div>';
+        h+='<button class="btn btn-secondary btn-full mb8" onclick="addTwdExtra('+tidJ+')">＋ '+(zh5?'新增項目':'Add Item')+'</button>';
+    h+='<button onclick="convertToTWDFree('+tidJ+')" class="btn btn-secondary btn-full mb12">💱 '+(zh5?'換算':'Convert')+'</button>';
+    h+='<div id="twd-result"></div>';
+    h+='</div>';
+    h+='<button onclick="openQuoteModal('+tidJ+')" class="btn btn-primary btn-full mb12">📋 '+(zh5?'產生報價單':'Generate Quote')+'</button>';
   }
   /* Expenses list */
   h+='<div class="section-head"><div class="t-h2">'+(LG==='zh'?'費用記錄':'Expenses')+'</div></div>';
@@ -1077,6 +1139,141 @@ function renderFinance(){
   }
 }
 function selFinTrip(id){ selTripId=id; renderFinance(); }
+
+function saveFreePaying(tid){
+  var trip=DB.trips.find(function(t){return t.id===tid;}); if(!trip) return;
+  var el=document.getElementById('pi-free-paying');
+  if(el) trip.freePaying=parseInt(el.value)||1;
+  var fxEl=document.getElementById('pi-fxrate');
+  var targetEl=document.getElementById('pi-targetcur');
+  if(fxEl) trip.fxRate=parseFloat(fxEl.value)||0;
+  if(targetEl) trip.convTargetCur=targetEl.value||'TWD';
+  saveDB();
+}
+function convertToTWDFree(tid){
+  var trip=DB.trips.find(function(t){return t.id===tid;}); if(!trip) return;
+  var fxEl=document.getElementById('pi-fxrate');
+  var targetEl=document.getElementById('pi-targetcur');
+  var payEl=document.getElementById('pi-free-paying');
+  if(fxEl) trip.fxRate=parseFloat(fxEl.value)||1;
+  if(targetEl) trip.convTargetCur=targetEl.value||'TWD';
+  if(payEl) trip.freePaying=parseInt(payEl.value)||1;
+  var extras=trip.twdExtras||[];
+  saveDB();
+  var el=document.getElementById('twd-result'); if(!el) return;
+  var zh=LG==='zh'||LG==='zh_cn';
+  var rate=trip.fxRate||1;
+  var target=trip.convTargetCur||'TWD';
+  var tSym=(CURR[target]||CURR.TWD).sym;
+  var twdExtrasTotal=extras.reduce(function(a,ex){return a+(ex.amt||0);},0);
+  var exps=DB.expenses.filter(function(e){return e.tid===tid;});
+  var costA=exps.filter(function(e){return e.costType!=='B';}).reduce(function(a,e){return a+e.amt;},0);
+  var costB=exps.filter(function(e){return e.costType==='B';}).reduce(function(a,e){return a+e.amt;},0);
+  var paying=trip.freePaying||1;
+  var totalCostOrig=costA+costB*paying;
+  var totalCostTarget=totalCostOrig*rate+twdExtrasTotal;
+  var perPersonTarget=paying>0?totalCostTarget/paying:0;
+  var fmtT=function(n){ return tSym+Math.round(n).toLocaleString(); };
+  el.innerHTML=
+    '<div style="background:#fff8e6;border-radius:10px;padding:12px;margin-top:8px">'+
+    '<div class="t-h3 mb8">'+tSym+' '+target+(zh?' 換算結果':' Conversion Result')+'</div>'+
+    '<div style="font-size:13px;color:#633806;line-height:2">'+
+    (zh?'原始總成本 × 匯率':'Original cost × rate')+' = '+fc(totalCostOrig)+' × '+rate+' = <b>'+fmtT(totalCostOrig*rate)+'</b>'+
+    (twdExtrasTotal>0?'<br>'+(extras.map(function(ex){return '• '+(ex.desc||'—')+': '+fmtT(ex.amt||0);}).join('<br>'))+'<br>'+(zh?'額外費用小計':'Extra subtotal')+' = <b>'+fmtT(twdExtrasTotal)+'</b>':'')+
+    '<br><b>'+(zh?target+' 總成本':'Total ('+target+')')+' = '+fmtT(totalCostTarget)+'</b></div>'+
+    '<div class="pricing-result-grid" style="margin-top:10px">'+
+    '<div class="pricing-box" style="background:#E1F5EE"><div class="pricing-box-val" style="color:#085041">'+fmtT(perPersonTarget)+'</div><div class="pricing-box-lbl" style="color:#085041">'+(zh?'每人費用 ('+target+')':'Per Person ('+target+')')+'</div></div>'+
+    '<div class="pricing-box" style="background:#f5f5f3"><div class="pricing-box-val">'+paying+'</div><div class="pricing-box-lbl">'+(zh?'付費人數':'Paying Pax')+'</div></div>'+
+    '</div></div>';
+  trip.twdResult={rate:rate,twdExtras:twdExtrasTotal,target:target}; saveDB();
+}
+function openImportGoogleSheet(){
+  var zh=LG==='zh'||LG==='zh_cn';
+  var b='<div class="t-small mb12">'+(zh?'將 Google 表單回覆試算表設為「知道連結的人可以檢視」，複製連結貼到下方：':'Set your Google Form response sheet to "Anyone with link can view", paste the link below:')+'</div>';
+  b+='<div style="background:#E6F1FB;border-radius:10px;padding:12px;margin-bottom:14px;font-size:12px;line-height:1.9;color:#0C447C">';
+  b+=(zh?'設定步驟：<br>1. 打開 Google 表單 → 點「回覆」→ 點試算表圖示<br>2. 試算表右上角「共用」→「知道連結的人」→「檢視者」<br>3. 複製連結貼到下方':'Steps:<br>1. Open Google Form → Responses → click Sheets icon<br>2. Share (top right) → Anyone with link → Viewer<br>3. Copy link and paste below');
+  b+='</div>';
+  b+='<div class="form-group"><label class="flabel">'+(zh?'Google 試算表連結':'Google Sheets URL')+'</label>';
+  b+='<input class="finput" id="gs-url" type="url" placeholder="https://docs.google.com/spreadsheets/d/..."></div>';
+  b+='<button class="btn btn-primary btn-full" onclick="fetchGoogleSheet()">'+(zh?'📥 匯入':'📥 Import')+'</button>';
+  b+='<div id="gs-status" style="margin-top:10px"></div>';
+  openModal(zh?'🔗 從 Google 表單匯入':'🔗 Import from Google Form', b, false);
+}
+function fetchGoogleSheet(){
+  var zh=LG==='zh'||LG==='zh_cn';
+  var url=document.getElementById('gs-url').value.trim();
+  if(!url){ alert(zh?'請輸入連結':'Please enter URL'); return; }
+  var m=url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  if(!m){ alert(zh?'連結格式不正確':'Invalid URL'); return; }
+  var sheetId=m[1];
+  var statusEl=document.getElementById('gs-status');
+  statusEl.innerHTML='<div style="color:#185FA5;font-size:13px">'+(zh?'⏳ 讀取中…':'⏳ Loading…')+'</div>';
+  var csvUrl='https://docs.google.com/spreadsheets/d/'+sheetId+'/export?format=csv&gid=0';
+  fetch(csvUrl)
+    .then(function(res){ if(!res.ok) throw new Error('HTTP '+res.status); return res.text(); })
+    .then(function(csvText){
+      var parsed=parseGoogleSheetCSV(csvText,zh);
+      if(!parsed||!parsed.length){ statusEl.innerHTML='<div style="color:#E24B4A;font-size:13px">'+(zh?'❌ 找不到有效資料，請確認試算表有資料且已公開':'❌ No valid data. Check sheet has data and is public.')+'</div>'; return; }
+      closeModal(); showImportReviewModal(parsed);
+    })
+    .catch(function(){ statusEl.innerHTML='<div style="color:#E24B4A;font-size:13px">'+(zh?'❌ 無法讀取。請確認試算表已設為公開':'❌ Could not fetch. Check sheet is public.')+'</div>'; });
+}
+function parseGoogleSheetCSV(csvText,zh){
+  function parseRow(line){
+    var res=[],cur='',inQ=false;
+    for(var i=0;i<line.length;i++){
+      var c=line[i];
+      if(c==='"'){inQ=!inQ;}
+      else if(c===','&&!inQ){res.push(cur.trim());cur='';}
+      else{cur+=c;}
+    }
+    res.push(cur.trim()); return res;
+  }
+  var lines=csvText.split(/\r?\n/).filter(function(l){return l.trim();});
+  if(lines.length<2) return [];
+  var headers=parseRow(lines[0]).map(function(h){return h.replace(/^"|"$/g,'').trim();});
+  var aliases={
+    name:['姓名','name','全名','full name','您的姓名','名字'],
+    passport:['護照號碼','passport','護照','passport number'],
+    email:['email','電子郵件','電郵','e-mail','電子信箱'],
+    phone:['電話','phone','手機','mobile','tel','電話號碼'],
+    cert:['證照等級','cert level','cert','certification','潛水等級','證照'],
+    org:['發證機構','cert org','org','organization'],
+    certNum:['證照號碼','cert number','certnum','cert no'],
+    due:['應付金額','amount due','due','amount','金額','費用','團費']
+  };
+  var colMap={};
+  Object.keys(aliases).forEach(function(field){
+    aliases[field].forEach(function(alias){
+      headers.forEach(function(h,i){
+        if(h.toLowerCase()===alias.toLowerCase()&&colMap[field]===undefined) colMap[field]=i;
+      });
+    });
+  });
+  if(colMap.name===undefined) return [];
+  var certMap={'開放水域':'ow','ow':'ow','open water':'ow','進階':'aow','進階開放水域':'aow','aow':'aow','advanced':'aow','救援':'rescue','rescue':'rescue','潛水長':'dm','dm':'dm','divemaster':'dm','教練':'instructor','instructor':'instructor','技術':'tech','tech':'tech'};
+  var orgMap={'sditdi':'sditdi','sdi':'sditdi','tdi':'sditdi','padi':'padi','ssi':'ssi','cmas':'cmas','naui':'naui','bsac':'bsac','raid':'raid','aida':'aida','molchanovs':'molchanovs','pfi':'pfi'};
+  var parsed=[];
+  for(var i=1;i<lines.length;i++){
+    var row=parseRow(lines[i]).map(function(v){return v.replace(/^"|"$/g,'').trim();});
+    var nm=(row[colMap.name]||'').trim(); if(!nm) continue;
+    var certRaw=(row[colMap.cert]||'').trim().toLowerCase();
+    var orgRaw=(row[colMap.org]||'').trim().toLowerCase().replace(/[^a-z0-9]/g,'');
+    parsed.push({
+      name:nm,
+      passport:(row[colMap.passport]||'').trim(),
+      email:(row[colMap.email]||'').trim(),
+      phone:(row[colMap.phone]||'').trim(),
+      cert:certMap[certRaw]||'ow',
+      org:orgMap[orgRaw]||'padi',
+      certNum:(row[colMap.certNum]||'').trim(),
+      due:parseFloat((row[colMap.due]||'').replace(/[^0-9.]/g,''))||0,
+      checked:true
+    });
+  }
+  return parsed;
+}
+
 function delExpense(id){ if(!confirm(T('delExp'))) return; DB.expenses=DB.expenses.filter(function(e){return e.id!==id;}); saveDB(); renderFinance(); }
 
 function toggleFreeCoach(tid,pid,inputId){
@@ -1272,20 +1469,17 @@ function openQuoteModal(tid){
   var sym=(CURR[r.cur||CUR]||CURR.TWD).sym;
   var exps=DB.expenses.filter(function(e){return e.tid===tid;});
   var catLabels=S[LG]&&S[LG].cats?S[LG].cats:S.en.cats;
-  /* Always rebuild included from actual expenses + current language */
   var catOrder=['charter','accommodation','gas','equipment','permits','food','transport','flights','tips','insurance','other'];
   var expCatKeys=[];
-  exps.forEach(function(e){ if(expCatKeys.indexOf(e.cat)<0) expCatKeys.push(e.cat); });
+  exps.forEach(function(e){if(expCatKeys.indexOf(e.cat)<0)expCatKeys.push(e.cat);});
   var orderedKeys=catOrder.filter(function(c){return expCatKeys.indexOf(c)>=0;});
   expCatKeys.forEach(function(c){if(orderedKeys.indexOf(c)<0)orderedKeys.push(c);});
   var includedCats=orderedKeys.map(function(c){return catLabels[c]||c;});
-  /* Default excluded: only items NOT in actual expenses */
   var defaultExclude=[];
   if(orderedKeys.indexOf('flights')<0) defaultExclude.push(zh?'國際機票':'International flights');
   if(orderedKeys.indexOf('tips')<0) defaultExclude.push(zh?'小費':'Tips');
   defaultExclude.push(zh?'私人消費':'Personal expenses');
   var defaultNotes=zh?['團費依實際匯率微調','訂金保留名額','需自行準備個人潛水裝備']:['Price subject to exchange rate adjustment','Deposit required to reserve spot','Personal dive gear required'];
-  /* Regenerate fresh every time (respects current language + expenses) */
   var savedTitle=(trip.quoteData&&trip.quoteData.title)||trip.name||(zh?'潛旅報價':'Dive Trip Quote');
   var q={title:savedTitle,included:includedCats,excluded:defaultExclude,notes:defaultNotes};
   trip.quoteData=q; saveDB();
