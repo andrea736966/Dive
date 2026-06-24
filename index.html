@@ -497,13 +497,21 @@ function badgeHtml(status){
 }
 function fd(s){
   if(!s) return '';
-  var d=new Date(s+'T00:00:00');
-  return d.toLocaleDateString(LG==='zh'?'zh-TW':'en-US',{month:'short',day:'numeric'});
+  var parts=s.split('-');
+  if(parts.length!==3) return s;
+  var y=parseInt(parts[0]),m=parseInt(parts[1])-1,d=parseInt(parts[2]);
+  var dt=new Date(y,m,d);
+  var locale=LG==='zh'?'zh-TW':LG==='zh_cn'?'zh-CN':'en-US';
+  return dt.toLocaleDateString(locale,{month:'short',day:'numeric'});
 }
 function fdFull(s){
   if(!s) return '';
-  var d=new Date(s+'T00:00:00');
-  return d.toLocaleDateString(LG==='zh'?'zh-TW':'en-US',{year:'numeric',month:'short',day:'numeric'});
+  var parts=s.split('-');
+  if(parts.length!==3) return s;
+  var y=parseInt(parts[0]),m=parseInt(parts[1])-1,d=parseInt(parts[2]);
+  var dt=new Date(y,m,d);
+  var locale=LG==='zh'?'zh-TW':LG==='zh_cn'?'zh-CN':'en-US';
+  return dt.toLocaleDateString(locale,{year:'numeric',month:'short',day:'numeric'});
 }
 function catLabel(c){ return TT('cats',c)||c; }
 function tripTypeLabel(t){ return TT('tripTypes',t)||t; }
@@ -972,7 +980,6 @@ function renderFinance(){
       h+='<span style="font-size:12px">'+r2.paying+(zh4?' 人付費':' paying')+' · '+(r2.totalMarkup||r2.margin||0)+'% · '+(r2.cur||CUR)+'</span>';
       h+='</div>';
       h+='</div>';
-      h+='<button onclick="openQuoteModal(\''+tid+'\')" class="btn btn-secondary btn-full mb8">📋 '+(zh3?'產生報價單':'Generate Quote')+'</button>';
     } else {
       h+='<div id="pricing-result"></div>';
     }
@@ -1041,6 +1048,7 @@ function renderFinance(){
       h+='<button class="btn btn-secondary btn-full mb8" onclick="addTwdExtra(\''+tid+'\')">＋ '+(zh3?'新增項目':'Add Item')+'</button>';
       h+='<button onclick="convertToTWD(\''+tid+'\')" class="btn btn-secondary btn-full mb12">💱 '+(zh3?'換算':'Convert')+'</button>';
       h+='<div id="twd-result"></div>';
+      if(trip.pricingResult) h+='<button onclick="openQuoteModal(\''+tid+'\')" class="btn btn-primary btn-full mb8" style="margin-top:12px">📋 '+(zh3?'產生報價單':'Generate Quote')+'</button>';
       h+='</div>';
     }
   } else {
@@ -1283,7 +1291,7 @@ function openQuoteModal(tid){
     notes:defaultNotes
   };
   trip.quoteData=q; saveDB();
-  var dep=trip.dep?trip.dep.replace(/-/g,'/'):''; var ret=trip.ret?trip.ret.replace(/-/g,'/'):'';
+  var dep=trip.dep?fdFull(trip.dep):''; var ret=trip.ret?fdFull(trip.ret):'';
   var dateStr=dep&&ret?dep+' ～ '+ret:dep||'';
   var suggested=r.suggested; var sugTWD=trip.twdResult&&trip.twdResult.target?null:null;
   /* If TWD conversion done, use that price */
@@ -1336,7 +1344,7 @@ function previewQuote(tid){
   if(excEl) q.excluded=excEl.value.split('\n').map(function(s){return s.trim();}).filter(Boolean);
   if(notesEl) q.notes=notesEl.value.split('\n').map(function(s){return s.trim();}).filter(Boolean);
   trip.quoteData=q; saveDB();
-  var dep=trip.dep?trip.dep.replace(/-/g,'/'):''; var ret=trip.ret?trip.ret.replace(/-/g,'/'):'';
+  var dep=trip.dep?fdFull(trip.dep):''; var ret=trip.ret?fdFull(trip.ret):'';
   var dateStr=dep&&ret?dep+' ～ '+ret:dep||'';
   /* Build preview */
   var txt='';
