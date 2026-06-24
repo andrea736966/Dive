@@ -992,20 +992,24 @@ function renderFinance(){
       h+='<div class="sel-opt'+(splitMode==='custom'?' on':'')+'" onclick="setSplitMode(\''+tid+'\',\'custom\')">✏️ '+(zh3?'自訂比例':'Custom %')+'</div>';
       h+='</div>';
       if(splitMode==='custom'){
-        var cs=trip.customSplit||[];
-        /* Build default list from: 1) freeCoachIds members, 2) instructor/dm members, 3) coach count number */
-        if(!cs.length){
-          var fCoaches=ps.filter(function(p){return (trip.freeCoachIds||[]).indexOf(p.id)>=0;});
-          if(!fCoaches.length) fCoaches=ps.filter(function(p){return p.cert==='instructor'||p.cert==='dm';});
-          if(fCoaches.length){
-            cs=fCoaches.map(function(c){return{name:c.name,pct:Math.round(100/fCoaches.length)};});
-          } else {
-            /* Fall back to coach count from pricing inputs */
-            var numC=(trip.pricingInputs&&trip.pricingInputs.coaches)||1;
-            for(var ci=0;ci<numC;ci++) cs.push({name:(zh3?'教練':'Coach')+' '+(ci+1),pct:Math.round(100/numC)});
-          }
-          trip.customSplit=cs; saveDB();
+        /* Always rebuild customSplit from current freeCoachIds to stay in sync */
+        var fCoaches=ps.filter(function(p){return (trip.freeCoachIds||[]).indexOf(p.id)>=0;});
+        if(!fCoaches.length) fCoaches=ps.filter(function(p){return p.cert==='instructor'||p.cert==='dm';});
+        var cs;
+        if(fCoaches.length){
+          /* Rebuild from freeCoaches, preserve existing pct if name matches */
+          var oldSplit=trip.customSplit||[];
+          cs=fCoaches.map(function(c){
+            var existing=oldSplit.find(function(s){return s.name===c.name;});
+            return {name:c.name, pct:existing?existing.pct:Math.round(100/fCoaches.length)};
+          });
+        } else {
+          /* Fall back to coach count */
+          var numC=(trip.pricingInputs&&trip.pricingInputs.coaches)||1;
+          cs=[];
+          for(var ci=0;ci<numC;ci++) cs.push({name:(zh3?'教練':'Coach')+' '+(ci+1),pct:Math.round(100/numC)});
         }
+        trip.customSplit=cs; saveDB();
         var totalPct=cs.reduce(function(a,s){return a+(s.pct||0);},0);
         cs.forEach(function(s,i){
           h+='<div class="frow mb6"><div class="form-group" style="flex:2"><input class="finput" value="'+s.name.replace(/"/g,'&quot;')+'" oninput="updateSplit(\''+tid+'\','+i+',\'name\',this.value)"></div>';
