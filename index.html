@@ -1285,6 +1285,8 @@ function toggleFreeCoach(tid,pid,inputId){
   pi.coaches=trip.freeCoachIds.length;
   pi.paying=Math.max((pi.totalpax||0)-pi.coaches,0);
   trip.pricingInputs=pi;
+  /* Reset customSplit so it rebuilds from updated freeCoachIds */
+  trip.customSplit=[];
   saveDB(); renderFinance();
 }
 function toggleCoachPicker(tid){
@@ -2430,13 +2432,13 @@ function showWelcomeModal(){
   b+='<div style="font-weight:700;font-size:14px;color:#085041;margin-bottom:8px">⚙️ '+(zh?'第一步：先完成基本設定（重要！）':'Step 0: Complete Basic Setup First!')+'</div>';
   b+='<div style="font-size:12px;color:#085041;line-height:2">'+(zh?
     '請先到右上角 ⚙️ 設定頁完成以下設定：<br>'+
-    '🌐 <b>語言</b>：繁體中文 / 简体中文 / English（11種語言）<br>'+
-    '💱 <b>幣別</b>：選擇主要幣別（THB / TWD / CNY 等14種）<br>'+
+    '🌐 <b>語言</b>：繁體中文 / 简体中文 / English 等12種語言<br>'+
+    '💱 <b>幣別</b>：TWD / THB / USD / JPY / KRW / IDR / PHP / VND / SGD / EUR / GBP / AUD / HKD / CNY<br>'+
     '⚠️ 幣別必須在新增費用前設定好，之後可在財務頁換算成其他幣別。'
     :
     'Tap ⚙️ Settings top-right:<br>'+
-    '🌐 <b>Language</b>: 11 languages including Traditional/Simplified Chinese<br>'+
-    '💱 <b>Currency</b>: 14 currencies incl. THB/TWD/CNY/USD<br>'+
+    '🌐 <b>Language</b>: 12 languages incl. Traditional/Simplified Chinese, English, Thai, Japanese and more<br>'+
+    '💱 <b>Currency</b>: TWD / THB / USD / JPY / KRW / IDR / PHP / VND / SGD / EUR / GBP / AUD / HKD / CNY<br>'+
     '⚠️ Set currency BEFORE adding expenses. Convert later in Finance tab.'
   )+'</div></div>';
 
@@ -2447,10 +2449,14 @@ function showWelcomeModal(){
   );
 
   b+=sec('👥', zh?'成員管理':'Member Management', zh?
-    '按「+」逐筆新增，或「📥 匯入Excel」批次匯入（.xlsx/.csv）。<br>'+
+    '新增成員有三種方式：<br>'+
+    '① 按「+」逐筆手動新增<br>'+
+    '② 「📥 匯入Excel」批次匯入（.xlsx/.csv），可下載範本<br>'+
+    '③ 「🔗 Google表單」直接貼上 Google 試算表連結匯入<br>'+
     '記錄姓名、護照、Email、電話、證照等級、發證機構、應付金額。<br>'+
+    '應付金額填 0 的成員顯示「教練」標籤，不計入待收款統計。<br>'+
     '點成員卡片記錄已收款。有API金鑰可拍照自動填入。'
-    :'Add one-by-one or bulk import via Excel. Stores name/passport/email/phone/cert/payment. Tap card to record payment. AI scan available with API key.'
+    :'Three ways to add members:<br>① Tap + to add one by one<br>② Import Excel (.xlsx/.csv) with template<br>③ 🔗 Google Form — paste your Google Sheet link to import directly<br>Members with Amount Due = 0 show a "Coach" badge and are excluded from payment tracking. Tap card to record payment. AI scan available with API key.'
   );
 
   b+=sec('💰', zh?'費用管理':'Expense Management', zh?
@@ -2460,40 +2466,71 @@ function showWelcomeModal(){
     :'👥 Total: group lump sum (e.g. charter) — auto÷paying pax. 🧍 Per-Person: already per-person amount — summed directly. Use your set currency; convert later.'
   );
 
+  b+=sec('🧮', zh?'費用試算（免費）':'Cost Calculator (Free)', zh?
+    '在財務頁輸入付費人數，系統自動計算每人費用：<br>'+
+    '• 總額類費用 ÷ 付費人數 = 每人費用<br>'+
+    '• 每人費用類直接加總<br>'+
+    '不需邀請碼即可使用。'
+    :'In Finance tab, enter paying pax — auto-calculates per-person cost. No invite code needed.'
+  );
+
+  b+=sec('💱', zh?'幣別換算（免費）':'Currency Conversion (Free)', zh?
+    '費用算完後可加入機票等額外費用，輸入匯率換算成其他幣別。<br>'+
+    '按「換算」得出目標幣別每人售價。不需邀請碼。'
+    :'After calculating costs, add extra items (e.g. flights), enter exchange rate, tap Convert. No invite code needed.'
+  );
+
+  b+=sec('📋', zh?'一鍵報價單（免費）':'Generate Quote (Free)', zh?
+    '費用算完後按「產生報價單」：<br>'+
+    '• 自動帶入費用包含/不包含項目（依實際費用記錄自動判斷）<br>'+
+    '• 語言隨 App 語言自動切換<br>'+
+    '• 按「預覽」可複製文字貼到 LINE / FB / IG<br>'+
+    '不需邀請碼。'
+    :'Tap Generate Quote: auto-fills included/excluded based on actual expenses, follows app language. Preview and copy to LINE/FB/IG. No invite code needed.'
+  );
+
+  b+=sec('🔗', zh?'Google 表單匯入（免費）':'Google Form Import (Free)', zh?
+    '成員頁按「🔗 Google表單」，貼上 Google 試算表連結直接匯入。<br>'+
+    '設定步驟：Google 表單 → 回覆 → 試算表圖示 → 共用 → 知道連結的人可以檢視。<br>'+
+    '建議表單欄位：姓名、護照號碼、Email、電話、證照等級、發證機構、證照號碼、應付金額。'
+    :'In People tab tap 🔗 Google Form, paste Google Sheet link to import directly. Setup: Form → Responses → Sheets icon → Share → Anyone with link can view. Recommended fields: Name, Passport, Email, Phone, Cert Level, Cert Org, Cert Number, Amount Due.'
+  );
+
   b+=sec('🧮', zh?'收費計算機（PRO）':'Pricing Calculator (PRO)', zh?
     '① 總人數：所有出發的人<br>'+
     '② FOC規則：船公司條件（10送1填10，沒有填0）<br>'+
-    '③ 免費教練人數：手動輸入；有成員時可展開列表快速選取自動帶入<br>'+
+    '③ 免費教練人數：手動輸入；有成員時可展開列表快速勾選自動帶入<br>'+
     '④ 付費人數：自動 = ①-③，可手動覆蓋<br>'+
     '⑤ 利潤設定：選擇「成本加成」或「目標毛利率」，輸入%<br>'+
     '&nbsp;&nbsp;&nbsp;&nbsp;+ 風險預備金：處理匯率波動/臨時退團等不確定成本<br>'+
     '按「立即計算」得出每人建議收費，結果自動儲存。'
     :
-    '① Total pax ② FOC rule ③ Enter free coach count manually; expand member list to auto-fill ④ Paying pax (auto) ⑤ Profit method + Risk Reserve % for unexpected costs. Tap Calculate. Results auto-saved.'
+    '① Total pax ② FOC rule ③ Free coach count (manual or pick from member list) ④ Paying pax (auto) ⑤ Profit method + Risk Reserve %. Tap Calculate. Results auto-saved.'
   );
 
-  b+=sec('📊', zh?'不同成團人數試算':'Scenario Calculator', zh?
-    '計算結果下方可新增想試算的人數（如18,19,20,21,22人），<br>'+
+  b+=sec('📊', zh?'不同成團人數試算（PRO）':'Scenario Calculator (PRO)', zh?
+    '計算結果下方可新增想試算的人數（如18,19,20,21人），<br>'+
     '按「試算」一次顯示各人數下的每人收費和總收入對照表。<br>'+
     '目前設定人數會以 ★ 標示。'
-    :'Below the result, add headcounts to compare (e.g. 18,19,20,21,22). Tap Calculate Scenarios to see per-person price and total revenue side by side. Current pax shown with ★.'
+    :'Add headcounts to compare (e.g. 18,19,20,21). Tap Calculate Scenarios to see per-person price and total revenue. Current pax shown with ★.'
   );
 
-  b+=sec('🤝', zh?'教練分潤':'Coach Profit Split', zh?
-    '計算結果中顯示「每位教練分潤（共X位）」。<br>'+
-    '可選擇「平均分潤」或「自訂比例」，自訂時系統自動帶入教練名字，<br>'+
-    '輸入各人百分比，系統檢查總和是否為100%。'
-    :'Coach profit shows "per coach (total X coaches)". Choose Equal Split or Custom %. Coach names auto-loaded from member list. System checks percentages total 100%.'
-  );
+  if(isPro()){
+    b+=sec('🤝', zh?'教練分潤（PRO）':'Coach Profit Split (PRO)', zh?
+      '計算結果中顯示「每位教練分潤（共X位）」。<br>'+
+      '可選擇「平均分潤」或「自訂比例」。<br>'+
+      '自訂時先在③勾選免費教練，系統自動帶入教練名字，<br>'+
+      '輸入各人百分比，系統檢查總和是否為100%。'
+      :'Shows per-coach profit. Choose Equal Split or Custom %. Select free coaches in step ③ — names auto-load. System checks percentages total 100%.'
+    );
+  }
 
-  b+=sec('💱', zh?'幣別換算':'Currency Conversion', zh?
+  b+=sec('💱', zh?'幣別換算進階（PRO）':'Currency Conversion PRO', zh?
     '計算後若需換算成其他幣別：<br>'+
-    '1. 選目標幣別（TWD/USD/CNY等）<br>'+
-    '2. 確認匯率（系統給建議值）<br>'+
-    '3. 新增台幣/目標幣別計算的額外費用（填總金額，自動÷人數）<br>'+
-    '4. 按「換算」顯示目標幣別售價<br>'+
-    '公式：（主幣別總成本×匯率＋額外費用）×(1+總加成率)÷付費人數'
-    :'After calculating: 1. Pick target currency 2. Confirm rate 3. Add extra costs in target currency (total, auto÷pax) 4. Tap Convert. Formula: (base cost × rate + extras) × (1+markup%) ÷ paying pax.'
+    '1. 選目標幣別 2. 確認匯率 3. 新增額外費用（如機票，填總金額自動÷人數）<br>'+
+    '4. 按「換算」顯示目標幣別每人售價<br>'+
+    '公式：（主幣別總成本×匯率＋額外費用）×(1+加成率)÷付費人數'
+    :'After calculating: 1. Pick target currency 2. Confirm rate 3. Add extra costs (total, auto÷pax) 4. Tap Convert. Formula: (base cost × rate + extras) × (1+markup%) ÷ paying pax.'
   );
 
   b+=sec('📁', zh?'備份・PDF・Excel':'Backup · PDF · Excel', zh?
@@ -2506,9 +2543,8 @@ function showWelcomeModal(){
   b+=sec('📷', zh?'AI掃描（需API金鑰）':'AI Scan (API key required)', zh?
     '⚙️ 設定→AI掃描設定→輸入Anthropic API金鑰。<br>'+
     '申請：console.anthropic.com，手機驗證獲$5免費額度（約掃千次）。<br>'+
-    '餘額不足：Plans & Billing → Credits加值。<br>'+
     '成員新增頁拍護照/證照→自動填入姓名、號碼、證照資訊。'
-    :'⚙️ Settings→AI Scan→enter Anthropic API key. Sign up at console.anthropic.com; phone verify for ~$5 free credit. Low balance: Plans & Billing→Credits. Scan passport/cert in Add Member to auto-fill.'
+    :'⚙️ Settings→AI Scan→enter Anthropic API key. Sign up at console.anthropic.com; phone verify for ~$5 free credit. Scan passport/cert in Add Member to auto-fill.'
   );
 
   b+='<button onclick="closeModal();gotoTab(\'settings\')" class="btn btn-secondary btn-full mb8">'+(zh?'⚙️ 前往設定語言和幣別':'⚙️ Go to Settings')+'</button>';
