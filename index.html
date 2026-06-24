@@ -913,8 +913,8 @@ function renderFinance(){
           var certLabel=p.cert?(TT('certs',p.cert)||p.cert):'';
           h+='<div class="row-between" style="padding:5px 4px;border-bottom:1px solid #eee">';
           h+='<div style="flex:1"><div style="font-size:13px">'+p.name+(certLabel?' <span style="color:#aaa;font-size:11px">'+certLabel+'</span>':'')+'</div></div>';
-          h+='<label class="tog" style="flex-shrink:0" onclick="toggleFreeCoach(\''+tid+'\',\''+p.id+'\',\'pi-coaches\')">';
-          h+='<input type="checkbox" '+(isCoach?'checked':'')+' style="display:none">';
+          h+='<label class="tog" style="flex-shrink:0">';
+          h+='<input type="checkbox" '+(isCoach?'checked':'')+' onchange="toggleFreeCoach(\''+tid+'\',\''+p.id+'\',\'pi-coaches\')">';
           h+='<div class="tog-track"><div class="tog-thumb"></div></div></label>';
           h+='</div>';
         });
