@@ -1272,24 +1272,22 @@ function openQuoteModal(tid){
   var sym=(CURR[r.cur||CUR]||CURR.TWD).sym;
   var exps=DB.expenses.filter(function(e){return e.tid===tid;});
   var catLabels=S[LG]&&S[LG].cats?S[LG].cats:S.en.cats;
-  /* Build included list in logical order: charter, accommodation, gas, equipment, permits, food, transport, tips, insurance, other */
-  var catOrder=['charter','accommodation','gas','equipment','permits','food','transport','tips','insurance','other'];
-  var expCats=exps.map(function(e){return e.cat;});
-  var orderedCats=catOrder.filter(function(c){return expCats.indexOf(c)>=0;});
-  /* Add any cats not in our order list */
-  expCats.forEach(function(c){if(orderedCats.indexOf(c)<0)orderedCats.push(c);});
-  var seenC={};
-  var includedCats=orderedCats.filter(function(c){if(seenC[c])return false;seenC[c]=true;return true;}).map(function(c){return catLabels[c]||c;});
-  /* Remove from default excluded anything already in included */
-  var rawExclude=zh?['國際機票','私人消費','裝備租借','小費']:['International flights','Personal expenses','Equipment rental','Tips'];
-  var defaultExclude=rawExclude.filter(function(x){ return includedCats.indexOf(x)<0; });
+  /* Always rebuild included from actual expenses + current language */
+  var catOrder=['charter','accommodation','gas','equipment','permits','food','transport','flights','tips','insurance','other'];
+  var expCatKeys=[];
+  exps.forEach(function(e){ if(expCatKeys.indexOf(e.cat)<0) expCatKeys.push(e.cat); });
+  var orderedKeys=catOrder.filter(function(c){return expCatKeys.indexOf(c)>=0;});
+  expCatKeys.forEach(function(c){if(orderedKeys.indexOf(c)<0)orderedKeys.push(c);});
+  var includedCats=orderedKeys.map(function(c){return catLabels[c]||c;});
+  /* Default excluded: only items NOT in actual expenses */
+  var defaultExclude=[];
+  if(orderedKeys.indexOf('flights')<0) defaultExclude.push(zh?'國際機票':'International flights');
+  if(orderedKeys.indexOf('tips')<0) defaultExclude.push(zh?'小費':'Tips');
+  defaultExclude.push(zh?'私人消費':'Personal expenses');
   var defaultNotes=zh?['團費依實際匯率微調','訂金保留名額','需自行準備個人潛水裝備']:['Price subject to exchange rate adjustment','Deposit required to reserve spot','Personal dive gear required'];
-  var q=trip.quoteData||{
-    title:trip.name||(zh?'潛旅報價':'Dive Trip Quote'),
-    included:includedCats,
-    excluded:defaultExclude,
-    notes:defaultNotes
-  };
+  /* Regenerate fresh every time (respects current language + expenses) */
+  var savedTitle=(trip.quoteData&&trip.quoteData.title)||trip.name||(zh?'潛旅報價':'Dive Trip Quote');
+  var q={title:savedTitle,included:includedCats,excluded:defaultExclude,notes:defaultNotes};
   trip.quoteData=q; saveDB();
   var dep=trip.dep?fdFull(trip.dep):''; var ret=trip.ret?fdFull(trip.ret):'';
   var dateStr=dep&&ret?dep+' ～ '+ret:dep||'';
