@@ -616,7 +616,7 @@ function toggleCheck(id){ var c=DB.checklist.find(function(x){return x.id===id;}
 function renderTrips(){
   var h='<div class="ph"><div class="t-h1">'+T('trips')+'</div><button class="add-btn" onclick="openAddTrip()">+</button></div>';
   if(!DB.trips.length){ h+='<div class="empty">'+T('noTrips').replace('\n','<br>')+'</div>'; }
-  else{ DB.trips.forEach(function(t){ var dc=DB.people.filter(function(p){return p.tid===t.id;}).length; h+='<div class="card"><div class="row-between mb8"><div style="flex:1;margin-right:8px"><div class="t-h2">'+t.name+'</div><div class="t-small" style="margin-top:3px">📍 '+t.dest+'</div></div>'+badgeHtml(t.status)+'</div><div class="divider"></div><div class="row gap12" style="margin-top:8px;flex-wrap:wrap"><span class="t-small">📅 '+fd(t.dep)+' → '+fd(t.ret)+'</span><span class="t-small">🤿 '+dc+(LG==='zh'?' 人':' pax')+'</span>'+(t.charter?'<span class="t-small">⚓ '+t.charter+'</span>':'')+'<span class="t-small">'+tripTypeLabel(t.tripType)+'</span>'+(t.focRule?(dc>0?'<span class="t-small">🎁 FOC: '+Math.floor(dc/t.focRule)+(LG==='zh'?'個':'')+'</span>':'<span class="t-small" style="color:#aaa">🎁 FOC規則: '+(LG==='zh'?'每'+t.focRule+'人送1':'1 free per '+t.focRule)+'</span>'):'')+'</div><div style="margin-top:10px"><button class="btn btn-danger btn-sm" onclick="deleteTrip(\''+t.id+'\')">🗑 '+(LG==='zh'?'刪除':'Delete')+'</button></div></div>'; }); }
+  else{ DB.trips.forEach(function(t){ var dc=DB.people.filter(function(p){return p.tid===t.id;}).length; h+='<div class="card"><div class="row-between mb8"><div style="flex:1;margin-right:8px"><div class="t-h2">'+t.name+'</div><div class="t-small" style="margin-top:3px">📍 '+t.dest+'</div></div>'+badgeHtml(t.status)+'</div><div class="divider"></div><div class="row gap12" style="margin-top:8px;flex-wrap:wrap"><span class="t-small">📅 '+fd(t.dep)+' → '+fd(t.ret)+'</span><span class="t-small">🤿 '+dc+(LG==='zh'?' 人':' pax')+'</span>'+(t.charter?'<span class="t-small">⚓ '+t.charter+'</span>':'')+'<span class="t-small">'+tripTypeLabel(t.tripType)+'</span>'+(t.focRule?(dc>0?'<span class="t-small">🎁 FOC: '+Math.floor(dc/t.focRule)+(LG==='zh'?'個':'')+'</span>':'<span class="t-small" style="color:#aaa">🎁 FOC規則: '+(LG==='zh'?'每'+t.focRule+'人送1':'1 free per '+t.focRule)+'</span>'):'')+'</div><div style="margin-top:10px;display:flex;gap:8px"><button class="btn btn-secondary btn-sm" onclick="openEditTrip(\''+(t.id)+'\')">✏️ '+(LG==='zh'?'編輯':'Edit')+'</button><button class="btn btn-danger btn-sm" onclick="deleteTrip(\''+(t.id)+'\')">🗑 '+(LG==='zh'?'刪除':'Delete')+'</button></div></div>'; }); }
   document.getElementById('sc-trips').innerHTML=h;
 }
 function openEditTrip(id){
@@ -2267,12 +2267,22 @@ function modalSave(){
     t.name=n;
     t.dest=document.getElementById('f-tdest').value||'';
     t.charter=document.getElementById('f-tcharter').value||'';
+    var oldDep=t.dep;
     t.dep=document.getElementById('f-tdep').value||'';
     t.ret=document.getElementById('f-tret').value||'';
     t.tripType=selTripType;
     t.focRule=parseInt(document.getElementById('f-tfoc').value)||0;
-    t.margin=parseFloat(document.getElementById('f-tmargin').value)||20;
+    t.margin=parseFloat(document.getElementById('f-tmargin').value)||0;
+    /* Auto-update expense dates that match old dep date to new dep date */
+    if(t.dep){
+      DB.expenses.forEach(function(e){
+        if(e.tid===t.id && e.date===oldDep) e.date=t.dep;
+      });
+    }
+    /* Reset quoteData so date refreshes next time quote is opened */
+    t.quoteData=null;
     saveDB(); closeModal(); renderTrips();
+dal(); renderTrips();
   }
   else if(modalMode==='addTrip'){
     var n=document.getElementById('f-tname').value.trim();
